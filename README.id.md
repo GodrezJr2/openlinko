@@ -97,26 +97,30 @@ Kalau ga setuju sama poin di atas, jangan dipakai.
 
 ## Fitur
 
-- **Status live** — baterai %, jarak, odometer, 12 V, status online/parkir/charging/jalan,
-  ditarik dari WebSocket realtime dan disimpan di SQLite.
-- **Pengisian** — sesi charge terdeteksi otomatis (kWh masuk pack, kWh dibayar di meteran,
-  biaya), grafik kurva charge, jumlah mingguan/bulanan, dan perencana "isi sampai X %" dengan
-  tarif SPKLU asli. Lonjakan regen difilter biar ga ngotorin riwayat charge.
-- **Efisiensi & perjalanan** — kWh/100 km per-trip & rata-rata bergulir dengan pengaman jujur,
-  total kWh / biaya / km seumur pakai, dan hemat vs bensin pakai harga BBM Indonesia asli.
-- **Perencana perjalanan jauh** — set start/finish, dapat titik charge di sepanjang rute yang
-  diukur supaya tiba dengan margin aman (gaya ABRP), lengkap tipe konektor / kW / ketersediaan
-  live dari Google.
-- **Peta SPKLU** — geser peta interaktif, ketuk charger untuk konektor, ketersediaan live, dan
-  petunjuk arah (gaya PLN Mobile), data dari Google Places.
-- **Kontrol jarak jauh (beta)** — tab Control yang menembakkan opcode asli `74<cmd><state>` ke
-  mobil: kunci/buka, A/C on/off + suhu target, jendela, sunroof, bagasi, find-car, stop charging.
-  Hanya *stop charging* yang terkonfirmasi; sisanya label best-effort yang bisa kamu remap dengan
-  long-press tombolnya. **Cloud-only — belum bisa Bluetooth.** Lihat
-  [docs/control-opcodes.md](docs/control-opcodes.md).
-- **Add-on head unit (baru)** — Climate Gesture: atur kipas dan suhu pakai dua jari di head unit J5. Lihat [Add-on head unit](#add-on-head-unit-climate-gesture).
-- **Perawatan baterai, hitung mundur servis, tampilan ban, toggle privasi, dark mode, i18n EN/ID.**
-- **Home Assistant** — baca semua lewat REST sensor + notif batre-low / charge-selesai. Lihat [docs/HOMEASSISTANT.md](docs/HOMEASSISTANT.md).
+Tampilan default adalah **v2** (`/`): app yang berpusat di mobil, model 3D mobilmu dengan status
+live dan satu layar untuk tiap bagiannya. Tampilan Classic masih ada di `/index.html` (atau ganti di Pengaturan).
+
+- **Mobil live** — baterai %, jarak, odometer, 12 V, parkir / charging / jalan, pintu, jendela,
+  sunroof, bagasi dan status kunci, dikirim lewat WebSocket realtime CarLinko dan disimpan di SQLite.
+- **Kontrol jarak jauh** — kunci / buka, AC on / off dengan suhu target, jendela, bagasi, find car,
+  stop charging. Perintahnya dienkripsi AES seperti app resmi, dan UI baru berubah setelah mobil
+  sendiri melaporkannya. Kunci, bagasi, jendela dan AC sudah terkonfirmasi di J5 EV; lihat
+  [docs/control-opcodes.md](docs/control-opcodes.md). **Cloud-only — belum bisa Bluetooth.**
+- **Climate** — AC dan suhu target, plus panel kursi gaya head unit; kontrol pemanas / ventilasi
+  kursi dan defog masih beta.
+- **Energi** — kWh/100 km per trip dan rata-rata bergulir **bersih setelah regen** (angka head unit
+  tetap ada sebagai "sebelum regen"), total kWh, biaya dan km, hemat vs bensin.
+- **Baterai & pengisian** — sesi charge terdeteksi otomatis (kWh masuk pack, kWh dibayar, biaya),
+  kurva charge, tips perawatan baterai, kesehatan aki 12 V.
+- **Ban** — tekanan per roda kalau mobil punya TPMS langsung; satu status di mobil dengan TPMS tidak langsung.
+- **Share card** — gambar statistik mobilmu yang rapi untuk dibagikan, tanpa plat dan VIN.
+- **Add-on head unit** — Climate Gesture: atur kipas dan suhu pakai dua jari di head unit J5,
+  dipasang dari dashboard lewat jaringan lokal. Lihat [Add-on head unit](#add-on-head-unit-climate-gesture).
+- **BEV dan PHEV** — level bensin, jarak bensin dan konsumsi bensin di PHEV.
+- **Home Assistant** — baca lewat REST sensor + notif baterai rendah / charge selesai
+  ([docs/HOMEASSISTANT.md](docs/HOMEASSISTANT.md)).
+- **Tambahan (opsional, butuh Google Maps key)** — perencana charge perjalanan jauh dan peta SPKLU.
+- Toggle privasi, dark mode, English / Bahasa Indonesia.
 
 Lihat [PRODUCT.md](PRODUCT.md) untuk alasan produk dan [DESIGN.md](DESIGN.md) untuk sistem visual.
 

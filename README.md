@@ -11,7 +11,7 @@ remote lock / A/C / windows / tailgate, energy use net of regen, charge sessions
 It exists because the stock CarLinko app shows the current state and little else: no trip totals,
 no charge-cost history, no efficiency over time. Everything here is derived from data the car
 **already** sends to its own cloud. This project just reads your own account and keeps the history.
-Tyre pressures and temperatures appear when your car has direct TPMS; cars with indirect TPMS
+Per-wheel tyre pressures appear when your car has direct TPMS; cars with indirect TPMS
 (like the J5 EV) only ever report a status, and the dashboard says so instead of inventing numbers.
 
 > Built against real cars, not a spec sheet. Charge-cost output matches the owner's PLN Mobile
@@ -107,12 +107,12 @@ and one screen per part of it. The classic interface is still at `/index.html` (
   UI only shows a change once the car itself reports it. Lock, trunk, windows and A/C are
   runtime-confirmed on the J5 EV; see [docs/control-opcodes.md](docs/control-opcodes.md).
   **Cloud only — no Bluetooth.**
-- **Climate** — head-unit style seat panel (heat / ventilation per seat), cabin temperature, defog.
+- **Climate** — A/C and target temperature, plus a head-unit style seat panel; seat heat / ventilation and defog controls are beta.
 - **Energy** — per-trip and rolling kWh/100 km **net of regen** (the head-unit figure is kept as
   "before regen"), lifetime kWh, cost and km, savings vs petrol.
 - **Battery & charging** — auto-detected charge sessions (kWh into the pack, kWh billed, cost),
   charge curves, battery-care hints, 12 V health.
-- **Tyres** — per-wheel pressure and temperature where the car reports direct TPMS.
+- **Tyres** — per-wheel pressure where the car reports direct TPMS; a single status on indirect-TPMS cars.
 - **Share card** — a clean image of your car's stats to post, with plate and VIN masked.
 - **Head unit add-on** — Climate Gesture: two-finger fan and temperature control on the J5 head
   unit, installed from the dashboard over the local network. See [Head unit add-on](#head-unit-add-on-climate-gesture).
