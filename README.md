@@ -369,7 +369,7 @@ phone is then just the browser (add it to your home screen as a PWA).
 | Host | Cost | Notes |
 | --- | --- | --- |
 | A spare PC / old laptop / **Raspberry Pi** at home | free | best privacy; reach it over [Tailscale](https://tailscale.com) |
-| A spare **Android phone** on the charger (Termux) | free | no PC needed; see [below](#old-android-phone-termux). New, not yet tested on many phones |
+| A spare **Android phone** on the charger (Termux) | free | no PC needed; see [below](#old-android-phone-termux). Tested on an Android 14 emulator; real-phone reports welcome |
 | A small **VPS** (Hetzner, Contabo, DigitalOcean…) | ~$4/mo | easiest always-on; keep it private with Tailscale, or set a `dashboard_password` |
 | **Fly.io / Railway / Render** free tier | free | deploy the Docker image; set a `dashboard_password`. A host that gives you one service and one volume can run the logger alongside the dashboard with the start command `bash railway_start.sh` (see below) |
 | **Oracle Cloud Free / Google e2-micro** | free | always-on free VM |

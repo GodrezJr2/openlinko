@@ -298,7 +298,7 @@ jadi browser (add to home screen jadi PWA).
 | Host | Biaya | Catatan |
 | --- | --- | --- |
 | PC nganggur / laptop lama / **Raspberry Pi** di rumah | gratis | paling privat; akses lewat [Tailscale](https://tailscale.com) |
-| **HP Android bekas** dicolok charger (Termux) | gratis | ga perlu PC; lihat [di bawah](#hp-android-bekas-termux). Masih baru, belum dites di banyak HP |
+| **HP Android bekas** dicolok charger (Termux) | gratis | ga perlu PC; lihat [di bawah](#hp-android-bekas-termux). Udah dites di emulator Android 14; laporan dari HP asli ditunggu |
 | **VPS** murah (Hetzner, Contabo, DigitalOcean…) | ~$4/bln | paling gampang nyala terus; privat pakai Tailscale, atau set `dashboard_password` |
 | **Fly.io / Railway / Render** free tier | gratis | deploy Docker image; set `dashboard_password`. Host yang cuma kasih satu service + satu volume bisa jalanin logger bareng dashboard pakai start command `bash railway_start.sh` (lihat bawah) |
 | **Oracle Cloud Free / Google e2-micro** | gratis | VM nyala terus gratis |
