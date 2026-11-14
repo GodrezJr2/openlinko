@@ -2,12 +2,12 @@
 
 Use it to find which property holds drive mode / regen level:
 
-    python tools/hu_probe.py snap before            # car in Normal, regen Low
+    python research/hu_probe.py snap before            # car in Normal, regen Low
     (change ONE setting in the car's own menu)
-    python tools/hu_probe.py snap after
-    python tools/hu_probe.py diff before after
+    python research/hu_probe.py snap after
+    python research/hu_probe.py diff before after
 
-    python tools/hu_probe.py watch                  # live: print props as they change
+    python research/hu_probe.py watch                  # live: print props as they change
 
 Needs the laptop on the same hotspot/LAN as the head unit (ADB on :5555, root via su).
 It only ever runs `lshal debug ... --get`; it never writes a property.
@@ -18,7 +18,7 @@ import re
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
 import headunit as hu  # noqa: E402
 
 ROOT = hu.ROOT

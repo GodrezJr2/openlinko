@@ -490,9 +490,12 @@ host one service holding everyone's credentials. Different models can override
 `creds.json`, so the app already adapts per car.
 
 ## Project layout
-- `tools/` — Python backend (`server.py`, `logger.py`, `auth.py`) + reverse-engineering utilities
-- `web/` — the PWA (single `index.html` + vendored `leaflet.*`, `slot-text.js`)
-- `docs/` — API map and decompiled signing notes (secrets redacted)
+- `tools/` — everything the dashboard runs: `server.py`, `logger.py`, `auth.py`, `run.py`, the
+  installers (`install.sh`, `termux-setup.sh`, `start.bat` at the root) and deploy scripts
+- `web/` — the PWA (`v2.html` default, `index.html` classic, vendored `leaflet.*` / `three.module.min.js`)
+- `headunit/` — the Climate Gesture head-unit add-on (Java source + built APK)
+- `docs/` — API map, control opcodes, CI/CD, Home Assistant notes
+- `research/` — the reverse-engineering scripts behind those docs; not needed to run anything ([README](research/README.md))
 - `PRODUCT.md`, `DESIGN.md` — product + visual design notes
 
 ## Related projects

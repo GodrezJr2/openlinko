@@ -1,5 +1,5 @@
 """CarLinko auth: request signing + self-login (token auto-refresh).
-Signing recovered from libapp.so (Blutter): see docs/decompiled/secure_*_utils.dart.
+Signing recovered from libapp.so (Blutter): see research/decompiled/secure_*_utils.dart.
   signature = base64(HMAC-SHA256(SIGN_KEY,
               jsonEncode(sortByKeyAsc({...params, timestamp}))))   # Dart jsonEncode = no spaces
 Login = POST /user/login with a plaintext password body. The `v-data` header the app sends is

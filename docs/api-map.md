@@ -183,7 +183,7 @@ Other commands report `Car refused (code 0x..)` until their branches are mapped.
 
 ## Standalone access — VALIDATED ✅
 
-`tools/ws_client.py`: a host-side Python client connects to the WS with **only the token**
+`research/ws_client.py`: a host-side Python client connects to the WS with **only the token**
 (WS login takes `{action:1,data:{token,vehicleId}}` — **no signature**), requests
 `{action:6}`, and decodes the blob. Confirmed against the app dashboard:
 
