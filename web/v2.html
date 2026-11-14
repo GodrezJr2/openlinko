@@ -453,13 +453,17 @@
   .elegend .gap{margin-left:auto;font-weight:600;color:var(--mut)}
 
   /* charts */
-  #echart,#cchart,#vchart{display:block;width:100%;margin-top:var(--s3);overflow:visible}
-  .vleg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:11.5px;color:var(--mut)}
+  #echart,#cchart{display:block;width:100%;margin-top:var(--s3);overflow:visible}
+  .vdays{display:flex;gap:3px;margin-top:14px}
+  .vdays i{flex:1;height:26px;border-radius:4px;min-width:0}
+  .vdays .ok,.vleg .ok{background:var(--acc)}
+  .vdays .low,.vleg .low{background:var(--warn)}
+  .vdays .bad,.vleg .bad{background:var(--bad)}
+  .vdays .na{background:var(--hair)}
+  .vends{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--fnt)}
+  .vleg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:11.5px;color:var(--mut)}
   .vleg span{display:inline-flex;align-items:center;gap:6px}
-  .vleg i{display:inline-block}
-  .vleg .vb{width:7px;height:14px;border-radius:4px;background:var(--acc-sf)}
-  .vleg .vr{width:14px;height:2px;border-radius:2px;background:var(--acc)}
-  .vleg .vl{width:6px;height:6px;border-radius:50%;background:var(--mut)}
+  .vleg i{display:inline-block;width:10px;height:10px;border-radius:3px}
   .vnote{margin:10px 0 0;font-size:12px;line-height:1.5;color:var(--mut)}
   .cstats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s2);margin-top:var(--s4);
     padding-top:var(--s3);border-top:1px solid var(--line);text-align:center}
@@ -1952,9 +1956,10 @@ function drawEnergy(hist, wltp){
 }
 
 // ---- battery page: SoC + range + 12V watch + health + care ----
+const fmtD = d => { const t = new Date(d + 'T00:00:00'); return t.getDate() + ' ' + t.toLocaleString('en', {month: 'short'}); };
 function renderBatt(){
   const el = $('pgBattBody');
-  const h = S.health || {}, bc = S.battery_care || {}, lf = S.lifetime || {};
+  const h = S.health || {}, bc = S.battery_care || {}, lf = S.lifetime || {}, pk = h.pack || {};
   const soc = S.battery != null ? S.battery : null;
   const v12ok = S.volt12_status === 'ok';
   const rows = [];
@@ -1969,6 +1974,17 @@ function renderBatt(){
     '<div class="panel"><div class="plbl">State of charge</div>' +
     '<div class="pval num">' + (soc != null ? soc : '—') + '<span class="u">%</span></div>' +
     '<div class="socbar"><i style="width:' + (soc || 0) + '%"></i></div></div>' +
+    (pk.sessions ? '<div class="sech" style="padding-left:0;padding-right:0"><span class="ov">Battery health</span></div>' +
+      '<div class="panel"><div class="plbl">' + (pk.soh != null ? 'Capacity kept since ' + fmtD(pk.since) :
+        'Learning from your fast charges') + '</div>' +
+      (pk.soh != null ?
+        '<div class="pval num">' + pk.soh + '<span class="u">%</span></div>' +
+        '<div class="socbar"><i style="width:' + pk.soh + '%"></i></div>' +
+        '<p class="vnote">Worked out from ' + pk.sessions + ' fast charges: a full battery took ' +
+        pk.base_kwh100 + ' kWh at first and ' + pk.now_kwh100 + ' kWh lately. ' +
+        'Give or take about 3%, so small moves are noise.</p>' :
+        '<p class="vnote">' + pk.sessions + ' of 12 fast charges (40% or more each) logged so far.</p>') +
+      '</div>' : '') +
     '<div class="sech" style="padding-left:0;padding-right:0"><span class="ov">12V auxiliary</span></div>' +
     '<div class="panel"><div class="plbl">' + (S.volt12 != null && S.volt12 >= 13.2 ?
       'Voltage now &middot; topped up by the main battery' : 'Voltage now') + '</div>' +
@@ -1976,16 +1992,19 @@ function renderBatt(){
     '<div class="stats"><div><b class="num">' + (S.volt12_rest7d != null ? S.volt12_rest7d.toFixed(2) + ' V' :
       S.volt12_min7d != null ? S.volt12_min7d.toFixed(1) + ' V' : '—') +
       '</b><span>' + (S.volt12_rest7d != null ? '7-day resting low' : '7-day low') + '</span></div>' +
-    '<div><b style="color:' + (v12ok ? 'var(--acc-ink)' : 'var(--bad)') + '">' +
+    '<div><b style="color:' + (v12ok ? 'var(--acc-ink)' : S.volt12_status === 'low' ? 'var(--warn)' : 'var(--bad)') + '">' +
       (S.volt12_status || '—') + '</b><span>status</span></div></div></div>' +
     ((S.volt12_hist || []).length > 1 ?
-      '<div class="panel"><div class="plbl">Last ' + S.volt12_hist.length + ' days</div>' +
-      '<svg id="vchart" viewBox="0 0 340 170" role="img" aria-label="12V voltage per day"></svg>' +
-      '<div class="vleg"><span><i class="vb"></i>range that day</span><span><i class="vr"></i>resting</span>' +
-      '<span><i class="vl"></i>lowest</span></div>' +
-      '<p class="vnote">Above 13.2 V the car is awake and charging the 12V from the main battery. ' +
-      'The resting line is what matters: below 12.5 V is getting low, below 12.0 V the car may stop ' +
-      'answering the app.</p></div>' : '') +
+      '<div class="panel"><div class="plbl">Each day, last ' + S.volt12_hist.length + ' days</div>' +
+      '<div class="vdays">' + S.volt12_hist.map(p => {
+        const k = p.rest == null ? 'na' : p.rest < 12.0 ? 'bad' : p.rest < 12.5 ? 'low' : 'ok';
+        return '<i class="' + k + '" title="' + p.d + ': ' + (p.rest != null ? 'resting ' + p.rest.toFixed(2) + ' V' :
+          'awake all day') + '"></i>'; }).join('') + '</div>' +
+      '<div class="vends"><span>' + fmtD(S.volt12_hist[0].d) + '</span><span>today</span></div>' +
+      '<div class="vleg"><span><i class="ok"></i>healthy</span><span><i class="low"></i>a bit low</span>' +
+      '<span><i class="bad"></i>weak</span></div>' +
+      '<p class="vnote">Judged on the voltage when the car sleeps. Healthy means 12.5 V or more. ' +
+      'If days keep turning red, the 12V battery is getting weak and the car may stop answering the app.</p></div>' : '') +
     (bc.state ? '<div class="sech" style="padding-left:0;padding-right:0"><span class="ov">Battery care</span></div>' +
       '<div class="panel"><div class="plbl">LFP balancing &mdash; full charge weekly</div>' +
       '<div class="stats" style="border-top:0;margin-top:14px;padding-top:0">' +
@@ -1995,44 +2014,6 @@ function renderBatt(){
     '<div class="rowcard">' + rows.map(r =>
       '<div class="row"><span class="rl">' + r[0] + '</span><span class="rv">' + r[1] + '</span></div>').join('') +
     '</div>';
-  drawV12(S.volt12_hist || []);
-}
-
-// 12V history: one column per day. Faint bar = lowest..highest reading, solid line = resting
-// voltage (DC-DC off), dot = the day's lowest reading, red when under 12.0 V.
-function drawV12(h){
-  const svg = $('vchart'); if(!svg || h.length < 2) return;
-  const W = 340, H = 170, L = 30, R = 8, T = 10, B = 22, lo = 11.4, hi = 14.6;
-  const n = h.length, cw = (W - L - R) / n;
-  const X = i => L + cw * (i + 0.5), Y = v => T + (1 - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * (H - T - B);
-  let g = '';
-  [[12.0, 'var(--bad)'], [12.5, 'var(--fnt)'], [13.2, 'var(--hair)'], [14.4, 'var(--hair)']].forEach(([v, c]) => {
-    const y = Y(v).toFixed(1);
-    g += '<line x1="' + L + '" y1="' + y + '" x2="' + (W - R) + '" y2="' + y + '" stroke="' + c + '" stroke-width="1"' +
-      (v === 12.0 || v === 12.5 ? ' stroke-dasharray="3 3"' : '') + '/>' +
-      '<text x="' + (L - 6) + '" y="' + (+y + 3).toFixed(1) + '" text-anchor="end" font-size="9" fill="var(--fnt)">' +
-      v.toFixed(1) + '</text>';
-  });
-  h.forEach((p, i) => {
-    const x = X(i).toFixed(1), w = Math.max(2, Math.min(7, cw - 3));
-    g += '<rect x="' + (X(i) - w / 2).toFixed(1) + '" y="' + Y(p.hi).toFixed(1) + '" width="' + w.toFixed(1) +
-      '" height="' + Math.max(1.5, Y(p.lo) - Y(p.hi)).toFixed(1) + '" rx="' + (w / 2).toFixed(1) +
-      '" fill="var(--acc-sf)"><title>' + p.d + ': ' + p.lo.toFixed(2) + '–' + p.hi.toFixed(2) + ' V' +
-      (p.rest != null ? ', resting ' + p.rest.toFixed(2) + ' V' : '') + '</title></rect>' +
-      '<circle cx="' + x + '" cy="' + Y(p.lo).toFixed(1) + '" r="2.4" fill="' +
-      (p.lo < 12.0 ? 'var(--bad)' : 'var(--mut)') + '"/>';
-  });
-  const rp = h.map((p, i) => p.rest != null ? X(i).toFixed(1) + ',' + Y(p.rest).toFixed(1) : null);
-  let seg = [];
-  const flush = () => { if(seg.length > 1) g += '<polyline points="' + seg.join(' ') + '" fill="none" stroke="var(--acc)" ' +
-    'stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'; seg = []; };
-  rp.forEach(p => { if(p) seg.push(p); else flush(); }); flush();
-  const md = d => { const t = new Date(d + 'T00:00:00'); return t.getDate() + ' ' + t.toLocaleString('en', {month: 'short'}); };
-  g += '<text x="' + X(0).toFixed(1) + '" y="' + (H - 6) + '" font-size="8.5" fill="var(--fnt)">' + md(h[0].d) + '</text>' +
-    '<text x="' + X(n - 1).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="end" font-size="8.5" fill="var(--fnt)">' +
-    md(h[n - 1].d) + '</text>';
-  svg.innerHTML = g;
-  drawIn(svg);
 }
 
 // ---- charging page: live state + charge curve + stats + history ----

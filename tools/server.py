@@ -965,6 +965,7 @@ def analyze(data, trips, kwh_day):
         "charged_kwh": round(sum(s["kwh"] / chg_eff(s["soc1"]) for s in sess), 1),  # delivered, lifetime-logged
         "avg_eff": round(sum(chg_eff(s["soc1"]) for s in sess) / len(sess) * 100) if sess else None,
         "sessions": len(sess)}
+    out["health"]["pack"] = pack_health(data, sess)
     out["lifetime"] = {                                # running totals since logging began
         "kwh_in": round(sum(s["kwh"] for s in sess), 1),                          # into the pack
         "kwh_billed": round(sum(s["kwh"] / chg_eff(s["soc1"]) for s in sess), 1), # metered (paid for)
@@ -1043,6 +1044,37 @@ def parked_drain(data):
     return best
 
 V12_AWAKE = 13.2   # above this the DC-DC converter is topping the 12V up from the main pack
+
+def pack_health(data, sess, n=6):
+    """Battery health from charging history alone. The car reports the charger's live power
+    (b62-63); integrated over a session and divided by the SoC gained it gives kWh per full pack.
+    A fading pack needs fewer kWh per 100%, so the recent median over the first sessions' median
+    is a capacity trend -- relative to when logging began, not to factory-new. Only clean DC
+    sessions count (>=40% gained, no >2 min data hole, peak >=20 kW) so taper/AC mix stays fair."""
+    import bisect
+    ts = [f[0] for f in data]
+    pts = []
+    for s in sess:
+        gain = s["soc1"] - s["soc0"]
+        if gain < 40 or s.get("ongoing"):
+            continue
+        i0 = bisect.bisect_left(ts, s["start"] - 120); i1 = min(bisect.bisect_right(ts, s["end"] + 120), len(data) - 1)
+        e = pk = 0.0; hole = False
+        for k in range(i0, i1):
+            dt = data[k + 1][0] - data[k][0]
+            if dt > 120: hole = True; break
+            p = data[k][2].get("charge_power") or 0
+            e += p * dt / 3600.0; pk = max(pk, p)
+        if hole or pk < 20 or e <= 0:
+            continue
+        pts.append({"d": time.strftime("%Y-%m-%d", time.localtime(s["start"])), "kwh100": round(e / gain * 100, 1)})
+    if len(pts) < 2 * n:
+        return {"soh": None, "sessions": len(pts), "points": pts}
+    med = lambda v: sorted(v)[len(v) // 2]
+    base = med([p["kwh100"] for p in pts[:n]]); now = med([p["kwh100"] for p in pts[-n:]])
+    return {"soh": min(100, round(now / base * 100)), "base_kwh100": base, "now_kwh100": now,
+            "since": pts[0]["d"], "sessions": len(pts), "points": pts}
+
 
 def volt12_history(data, days=30):
     """Per local day for the last `days`: lowest and highest 12V reading, and the median of the
@@ -1193,7 +1225,9 @@ def demo_summary():
         "km": {"today": 52, "week": 201, "month": 1043},
         "charges": {"week": 2, "month": 9},
         "history": history, "resync_km": "skip",
-        "health": {"usable_kwh": cap, "cycles": 31.4, "charged_kwh": 1612.0, "avg_eff": 89, "sessions": 38},
+        "health": {"usable_kwh": cap, "cycles": 31.4, "charged_kwh": 1612.0, "avg_eff": 89, "sessions": 38,
+                   "pack": {"soh": 99, "base_kwh100": 64.6, "now_kwh100": 63.9, "since": "2026-06-22",
+                            "sessions": 22, "points": []}},
         "lifetime": {"kwh_in": 1448.0, "kwh_billed": 1612.0, "cost": 4090000, "km": 8127,
                      "since": time.strftime("%d %b", time.localtime(now - 96 * 86400)),
                      "saved": 7240000, "liters_saved": 677.3, "co2_saved": 1564},
