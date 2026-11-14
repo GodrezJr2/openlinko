@@ -454,13 +454,10 @@
 
   /* charts */
   #echart,#cchart{display:block;width:100%;margin-top:var(--s3);overflow:visible}
-  .vdays{display:flex;gap:3px;margin-top:14px}
-  .vdays i{flex:1;height:26px;border-radius:4px;min-width:0}
-  .vdays .ok,.vleg .ok{background:var(--acc)}
-  .vdays .low,.vleg .low{background:var(--warn)}
-  .vdays .bad,.vleg .bad{background:var(--bad)}
-  .vdays .na{background:var(--hair)}
-  .vends{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--fnt)}
+  #vchart{display:block;width:100%;margin-top:12px;overflow:visible}
+  .vleg .ok{background:var(--acc)}
+  .vleg .low{background:var(--warn)}
+  .vleg .bad{background:var(--bad)}
   .vleg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:11.5px;color:var(--mut)}
   .vleg span{display:inline-flex;align-items:center;gap:6px}
   .vleg i{display:inline-block;width:10px;height:10px;border-radius:3px}
@@ -1995,16 +1992,12 @@ function renderBatt(){
     '<div><b style="color:' + (v12ok ? 'var(--acc-ink)' : S.volt12_status === 'low' ? 'var(--warn)' : 'var(--bad)') + '">' +
       (S.volt12_status || '—') + '</b><span>status</span></div></div></div>' +
     ((S.volt12_hist || []).length > 1 ?
-      '<div class="panel"><div class="plbl">Each day, last ' + S.volt12_hist.length + ' days</div>' +
-      '<div class="vdays">' + S.volt12_hist.map(p => {
-        const k = p.rest == null ? 'na' : p.rest < 12.0 ? 'bad' : p.rest < 12.5 ? 'low' : 'ok';
-        return '<i class="' + k + '" title="' + p.d + ': ' + (p.rest != null ? 'resting ' + p.rest.toFixed(2) + ' V' :
-          'awake all day') + '"></i>'; }).join('') + '</div>' +
-      '<div class="vends"><span>' + fmtD(S.volt12_hist[0].d) + '</span><span>today</span></div>' +
+      '<div class="panel"><div class="plbl">Sleeping voltage, last ' + S.volt12_hist.length + ' days</div>' +
+      '<svg id="vchart" viewBox="0 0 340 168" role="img" aria-label="12V sleeping voltage per day"></svg>' +
       '<div class="vleg"><span><i class="ok"></i>healthy</span><span><i class="low"></i>a bit low</span>' +
       '<span><i class="bad"></i>weak</span></div>' +
       '<p class="vnote">Judged on the voltage when the car sleeps. Healthy means 12.5 V or more. ' +
-      'If days keep turning red, the 12V battery is getting weak and the car may stop answering the app.</p></div>' : '') +
+      'If the line keeps dropping into red, the 12V battery is getting weak and the car may stop answering the app.</p></div>' : '') +
     (bc.state ? '<div class="sech" style="padding-left:0;padding-right:0"><span class="ov">Battery care</span></div>' +
       '<div class="panel"><div class="plbl">LFP balancing &mdash; full charge weekly</div>' +
       '<div class="stats" style="border-top:0;margin-top:14px;padding-top:0">' +
@@ -2014,6 +2007,35 @@ function renderBatt(){
     '<div class="rowcard">' + rows.map(r =>
       '<div class="row"><span class="rl">' + r[0] + '</span><span class="rv">' + r[1] + '</span></div>').join('') +
     '</div>';
+  drawV12(S.volt12_hist || []);
+}
+
+// 12V: one point per day = the sleeping (resting) voltage, over coloured zones so the reading
+// needs no legend math. Days the car never slept leave a gap. Last value tagged on the right.
+function drawV12(h){
+  const svg = $('vchart'); if(!svg) return;
+  const W = 340, H = 168, L = 34, R = 40, T = 8, B = 22, lo = 11.8, hi = 13.0;
+  const n = h.length, X = i => L + (W - L - R) * (n > 1 ? i / (n - 1) : 0.5);
+  const Y = v => T + (1 - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * (H - T - B);
+  const band = (a, b, c) => '<rect x="' + L + '" y="' + Y(b).toFixed(1) + '" width="' + (W - L - R) +
+    '" height="' + (Y(a) - Y(b)).toFixed(1) + '" fill="' + c + '" opacity=".13"/>';
+  let g = band(12.5, hi, 'var(--acc)') + band(12.0, 12.5, 'var(--warn)') + band(lo, 12.0, 'var(--bad)');
+  [12.0, 12.5, 13.0].forEach(v => g += '<text x="' + (L - 6) + '" y="' + (Y(v) + 3).toFixed(1) +
+    '" text-anchor="end" font-size="9.5" fill="var(--fnt)">' + v.toFixed(1) + '</text>');
+  const col = v => v < 12.0 ? 'var(--bad)' : v < 12.5 ? 'var(--warn)' : 'var(--acc)';
+  let seg = [];
+  const flush = () => { if(seg.length > 1) g += '<polyline points="' + seg.join(' ') +
+    '" fill="none" stroke="var(--ink)" stroke-opacity=".55" stroke-width="1.6" stroke-linejoin="round"/>'; seg = []; };
+  h.forEach((p, i) => { if(p.rest != null) seg.push(X(i).toFixed(1) + ',' + Y(p.rest).toFixed(1)); else flush(); }); flush();
+  h.forEach((p, i) => { if(p.rest == null) return;
+    g += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(p.rest).toFixed(1) + '" r="3" fill="' + col(p.rest) + '">' +
+      '<title>' + fmtD(p.d) + ': ' + p.rest.toFixed(2) + ' V</title></circle>'; });
+  const last = [...h].reverse().find(p => p.rest != null);
+  if(last) g += '<text x="' + (W - R + 6) + '" y="' + (Y(last.rest) + 3.5).toFixed(1) + '" font-size="11" font-weight="600" fill="' +
+    col(last.rest) + '">' + last.rest.toFixed(2) + '</text>';
+  if(n) g += '<text x="' + L + '" y="' + (H - 6) + '" font-size="9.5" fill="var(--fnt)">' + fmtD(h[0].d) + '</text>' +
+    '<text x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end" font-size="9.5" fill="var(--fnt)">today</text>';
+  svg.innerHTML = g;
 }
 
 // ---- charging page: live state + charge curve + stats + history ----
