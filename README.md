@@ -96,24 +96,30 @@ If you don't accept the above, don't use this.
 
 ## Features
 
-- **Live status** — battery %, range, odometer, 12 V, online/parked/charging/driving state,
-  pulled from the realtime WebSocket and cached in SQLite.
-- **Charging** — auto-detected charge sessions (kWh into pack, kWh billed at the meter, cost),
-  a charge-curve chart, weekly/monthly counts, and a "charge to X %" planner with real SPKLU
-  tariffs. Regen blips are filtered out so they don't pollute charge history.
-- **Efficiency & trips** — per-trip and rolling kWh/100 km with honest guards, lifetime kWh /
-  cost / km, and savings vs petrol at real Indonesian fuel prices.
-- **Long-trip planner** — set start/finish, get on-route charge stops sized to arrive with a
-  safety margin (ABRP-style), with real connector type / kW / live availability from Google.
-- **SPKLU map** — pan an interactive map, tap a charger for connectors, live availability and
-  directions (PLN-Mobile-style), data from Google Places.
-- **Remote control (beta)** — a Control tab that fires the real `74<cmd><state>` opcodes at the
-  car: lock/unlock, A/C on/off + target temp, windows, sunroof, tailgate, find-car, stop charging.
-  Only *stop charging* is confirmed; the rest are best-effort labels you can re-map by long-pressing
-  a button. **Cloud only — no Bluetooth.** See [docs/control-opcodes.md](docs/control-opcodes.md).
-- **Head unit add-on (new)** — Climate Gesture: two-finger fan and temperature control on the J5 head unit. See [Head unit add-on](#head-unit-add-on-climate-gesture).
-- **Battery care, service countdown, tyre view, privacy toggles, dark mode, EN/ID i18n.**
-- **Home Assistant** — read it all over a REST sensor and get battery-low / charge-done notifications. See [docs/HOMEASSISTANT.md](docs/HOMEASSISTANT.md). Prefer a native integration? [ha-carlinko](https://github.com/jebentancour/ha-carlinko) by [@jebentancour](https://github.com/jebentancour) (read-only, built on the same telemetry).
+The default interface is **v2** (`/`), a car-first app: a 3D model of your car with live state,
+and one screen per part of it. The classic interface is still at `/index.html` (or switch in Settings).
+
+- **Live vehicle** — battery %, range, odometer, 12 V, parked / charging / driving, doors,
+  windows, sunroof, tailgate and lock state, pushed over CarLinko's realtime WebSocket and kept in SQLite.
+- **Remote control** — lock / unlock, A/C on / off with target temperature, windows, tailgate,
+  find car, stop charging. Commands are AES-encrypted the way the official app sends them, and the
+  UI only shows a change once the car itself reports it. Lock, trunk, windows and A/C are
+  runtime-confirmed on the J5 EV; see [docs/control-opcodes.md](docs/control-opcodes.md).
+  **Cloud only — no Bluetooth.**
+- **Climate** — head-unit style seat panel (heat / ventilation per seat), cabin temperature, defog.
+- **Energy** — per-trip and rolling kWh/100 km **net of regen** (the head-unit figure is kept as
+  "before regen"), lifetime kWh, cost and km, savings vs petrol.
+- **Battery & charging** — auto-detected charge sessions (kWh into the pack, kWh billed, cost),
+  charge curves, battery-care hints, 12 V health.
+- **Tyres** — per-wheel pressure and temperature where the car reports direct TPMS.
+- **Share card** — a clean image of your car's stats to post, with plate and VIN masked.
+- **Head unit add-on** — Climate Gesture: two-finger fan and temperature control on the J5 head
+  unit, installed from the dashboard over the local network. See [Head unit add-on](#head-unit-add-on-climate-gesture).
+- **BEV and PHEV** — fuel level, fuel range and fuel consumption on PHEVs.
+- **Home Assistant** — read it over REST sensors with battery-low / charge-done notifications
+  ([docs/HOMEASSISTANT.md](docs/HOMEASSISTANT.md)). For a native integration see [Related projects](#related-projects).
+- **Extras (optional, need a Google Maps key)** — long-trip charge planner and SPKLU charger map.
+- Privacy toggles, dark mode, English / Bahasa Indonesia.
 
 See [PRODUCT.md](PRODUCT.md) for the product rationale and [DESIGN.md](DESIGN.md) for the
 visual system.
@@ -460,6 +466,19 @@ host one service holding everyone's credentials. Different models can override
 - `web/` — the PWA (single `index.html` + vendored `leaflet.*`, `slot-text.js`)
 - `docs/` — API map and decompiled signing notes (secrets redacted)
 - `PRODUCT.md`, `DESIGN.md` — product + visual design notes
+
+## Related projects
+
+OpenLinko was the first open-source CarLinko client (June 2026). Other projects on the same cloud:
+
+- [elad-bar/ha-carlinko](https://github.com/elad-bar/ha-carlinko) + [carlinko-card](https://github.com/elad-bar/carlinko-card) — native Home Assistant integration with remote controls and a Lovelace card
+- [jebentancour/ha-carlinko](https://github.com/jebentancour/ha-carlinko) — Home Assistant integration (Omoda E5, Uruguay)
+- [thititongumpun/ha-carlinko](https://github.com/thititongumpun/ha-carlinko) — Home Assistant integration (Omoda C5 EV, Thailand)
+- [francoisj1/carlinko-python](https://github.com/francoisj1/carlinko-python) — Python client
+- [AlanSRU/ioBroker.omoda](https://github.com/AlanSRU/ioBroker.omoda) — ioBroker adapter
+
+The protocol notes in [docs/api-map.md](docs/api-map.md) and [docs/control-opcodes.md](docs/control-opcodes.md)
+are meant as a shared reference — corrections and additions from any of these projects are welcome.
 
 ## Contributing
 Other Jaecoo / CarLinko owners welcome — a [compatibility report](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md)
