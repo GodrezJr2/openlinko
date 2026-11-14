@@ -898,6 +898,8 @@ MOTION: one ease token, 140/220/320ms, transform and opacity only, prefers-reduc
   <div class="pbody" id="pgFlexBody"></div></div>
 <div class="page" id="pgPlan" data-k="plan"><div class="phead"><button class="pback" data-close aria-label="Back"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1L2 10l8 9"/></svg></button><h2>Charge calculator</h2></div>
   <div class="pbody" id="pgPlanBody"></div></div>
+<div class="page" id="pgCarRep" data-k="carrep"><div class="phead"><button class="pback" data-close aria-label="Back"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1L2 10l8 9"/></svg></button><h2>Report my car</h2></div>
+  <div class="pbody" id="pgCarRepBody"></div></div>
 <div class="page" id="pgHu" data-k="hu"><div class="phead"><button class="pback" data-close aria-label="Back"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1L2 10l8 9"/></svg></button><h2>Head unit add-ons</h2></div>
   <div class="pbody" id="pgHuBody"></div></div>
 
@@ -2311,6 +2313,7 @@ function renderAcct(){
     {ic: 'camera', t: 'Update car photo',  s: 'Re-fetch the render from CarLinko', fn: async () => {
         const d = await api('api/photorefresh', {method: 'POST'});
         toast(d.ok ? 'Photo updated' : (d.error || 'failed')); if(d.ok) load(); }},
+    {ic: 'car',    t: 'Report my car',     s: 'Help add your model: copy a redacted report', fn: () => openPage('carrep')},
     {ic: 'link',   t: 'About', s: 'OpenLinko · self-hosted CarLinko dashboard', fn: () =>
         toast('OpenLinko · CarLinko, reverse-engineered')},
   ];
@@ -2332,6 +2335,36 @@ function renderAcct(){
     if(b.dataset.ui === 'v1') toast('Classic will open from the app icon');
   });
   $('aNote').textContent = 'Data source: your own CarLinko account, self-hosted. Nothing leaves this server.';
+}
+
+// ---- "Add my car": a redacted report (model, CarLinko's control config, 3 raw frames) to paste
+// into the GitHub issue form. Built by the server (/api/carreport); plate, VIN and account ids are
+// stripped there, and the status frames carry no location.
+const ADD_CAR_URL = 'https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml';
+let carRep = null;
+async function renderCarRep(){
+  const el = $('pgCarRepBody');
+  const draw = () => {
+    el.innerHTML =
+      '<div class="panel"><p class="hutx" style="margin:0">Your car isn\'t a J5 or the numbers look off? ' +
+        'This report lets the decoder be checked against your model. Copy it, open the form, paste it in, ' +
+        'and add what your car\'s own screen shows.</p>' +
+        '<div class="huip"><button class="hubtn2" id="crCopy"' + (carRep ? '' : ' disabled') + '>Copy report</button>' +
+        '<a class="hubtn2" href="' + ADD_CAR_URL + '" target="_blank" rel="noopener">Open the GitHub form</a></div></div>' +
+      '<div class="panel"><div class="plbl">What gets shared</div>' +
+        '<pre class="hucode" id="crText">' + huEsc(carRep == null ? 'Building the report…' : carRep) + '</pre>' +
+        '<p class="hutx" style="margin:var(--s3) 0 0;color:var(--mut);font-size:12.5px">No plate, VIN, email or location. ' +
+        'Read it before you post: it goes on a public GitHub issue.</p></div>';
+    const b = $('crCopy'); if(b) b.onclick = () => huCopy(carRep, b);
+  };
+  draw();
+  if(carRep) return;
+  try{
+    const r = await fetch('api/carreport');
+    if(r.status === 401){ location.href = './'; return; }
+    carRep = r.ok ? await r.text() : 'Could not build the report (' + r.status + ').';
+  }catch(e){ carRep = 'Could not reach the dashboard server.'; }
+  if(openKey === 'carrep') draw();
 }
 
 // ---- head unit add-ons: tutorial + find/install over the head unit's own ADB ----
@@ -2681,7 +2714,8 @@ const PAGES = {ac: ['pgAc', renderAc], doors: ['pgDoors', renderDoors],
                tyres: ['pgTyres', renderTyres], energy: ['pgEnergy', renderEnergy],
                batt: ['pgBatt', renderBatt], chg: ['pgChg', renderChg],
                dist: ['pgDist', renderDist], flex: ['pgFlex', renderFlex],
-               plan: ['pgPlan', renderPlan], hu: ['pgHu', renderHu]};
+               plan: ['pgPlan', renderPlan], hu: ['pgHu', renderHu],
+               carrep: ['pgCarRep', renderCarRep]};
 let openKey = null;
 
 function openPage(k, fromHistory){

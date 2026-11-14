@@ -30,7 +30,7 @@ langsung (seperti J5 EV) memang cuma kirim status, dan dashboard bilang begitu, 
 > berarti "jalan se-Chery Group", bukan harfiah mobil apa pun. Dua mobil itu sinyal kuat, bukan
 > bukti: byte yang belum kami petakan bisa saja beda, dan mobil ICE murni belum pernah dicoba.
 > Kalau mobilmu beda, tolong coba & kirim
-> [laporan kompatibilitas](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md) ya — satu mobil kedua
+> [laporan mobil](https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml) ya — satu mobil kedua
 > jauh lebih berharga buat proyek ini daripada berapa lama pun menatap yang pertama. 🙏
 
 ## Demo
@@ -403,8 +403,9 @@ bukan nge-host satu layanan yang menyimpan kredensial semua orang. Model berbeda
 - `PRODUCT.md`, `DESIGN.md` — catatan produk + desain visual
 
 ## Kontribusi
-Pemilik Jaecoo / CarLinko lain dipersilakan — [laporan kompatibilitas](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md)
-(jalan gak di mobil/region kamu?) paling berguna sekarang. Lihat
+Pemilik Jaecoo / CarLinko lain dipersilakan — [laporan mobil](https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml)
+paling berguna sekarang: di dashboard, **Akun → Report my car** nyalin laporan yang udah
+disensor (tanpa plat, VIN, lokasi) buat ditempel di situ. Lihat
 [CONTRIBUTING.md](CONTRIBUTING.md), dan [SECURITY.md](SECURITY.md) untuk privasi/keamanan.
 Tanya-tanya → [Discussions](https://github.com/GodrezJr2/openlinko/discussions).
 

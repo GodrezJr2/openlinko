@@ -221,6 +221,69 @@ def control_caps():
         "plate": v.get("licenseNumber") or "",
     }
 
+def car_report():
+    """Plain-text report for an "Add my car" issue: model, region, what CarLinko's own config says
+    this car supports, which constants we already know, and a few raw telemetry frames (parked /
+    driving / charging) so the byte offsets can be checked against a new model. The status blob
+    carries no position; plate, VIN and account ids are stripped from everything that goes out."""
+    import auth
+    v = {} if DEMO else (_vehicle_raw() or {})
+    hide = [x for x in (v.get("vin"), v.get("licenseNumber"), VEHICLE.get("vin"), VEHICLE.get("plate"),
+                           _CC.get("email"), _CC.get("device_sn"), str(_CC.get("vehicle_id") or ""))
+               if x and x not in ("—", "EV") and len(str(x)) >= 4]
+    def scrub(t):
+        for x in hide:
+            t = t.replace(str(x), "<redacted>")
+        return t
+    cfg = v.get("vehicleControlConfig")
+    if isinstance(cfg, str):
+        try: cfg = json.loads(cfg)
+        except Exception: cfg = {"_unparsed": cfg[:400]}
+    frames = {}
+    try:
+        conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=5)
+        try:
+            rows = conn.execute("SELECT ts, raw FROM telemetry WHERE online=1 AND raw IS NOT NULL "
+                                "ORDER BY rowid DESC LIMIT 60000").fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        rows = []
+    for ts, raw in rows:
+        try: d = decode_cached(raw)
+        except Exception: continue
+        # plugged in = a connector is reported (charge_power alone also moves with regen)
+        kind = ("charging" if d.get("charge_mode") in (1, 16) and d.get("charge_state") == 1
+                else "driving" if (d.get("speed") or 0) >= 15 else
+                "parked" if not d.get("charge_mode") and (d.get("speed") or 0) == 0 else None)
+        if kind is None:
+            continue
+        if kind not in frames:
+            frames[kind] = (ts, raw, d)
+        if len(frames) == 3:
+            break
+    model = VEHICLE.get("model") or v.get("model") or "?"
+    L = ["### OpenLinko car report", "",
+         f"- model (as CarLinko names it): `{model}`",
+         f"- region: `{auth._region()}`",
+         f"- in known_cars: {'yes' if KNOWN else 'no'}; battery_kwh {CAP_KWH:g} ({CAP_SOURCE}), "
+         f"wltp {WLTP_KWH_100:g} ({'known' if WLTP_KNOWN else 'guess'}), tpms_scale {TPMS_SCALE:g}, "
+         f"powertrain {POWERTRAIN}, chemistry {CHEMISTRY} ({'known' if CHEMISTRY_KNOWN else 'guess'})",
+         f"- frames logged: {len(rows)}{'+' if len(rows) >= 60000 else ''}", ""]
+    for kind in ("parked", "driving", "charging"):
+        if kind not in frames:
+            L.append(f"**{kind}:** no frame yet"); continue
+        ts, raw, d = frames[kind]
+        keep = {k: d.get(k) for k in ("battery", "range_km", "odometer", "volt12", "speed", "consumption",
+                                      "fuel_pct", "charge_mode", "charge_state", "charge_power", "charge_remain")
+                if d.get(k) is not None}
+        L += [f"**{kind}** ({time.strftime('%Y-%m-%d %H:%M', time.localtime(ts))}): "
+              + ", ".join(f"{k}={val}" for k, val in keep.items()),
+              "```", raw, "```"]
+    L += ["", "<details><summary>vehicleControlConfig</summary>", "", "```json",
+          json.dumps(cfg or {}, ensure_ascii=False, sort_keys=True)[:6000], "```", "</details>"]
+    return scrub("\n".join(L))
+
 def _seat_caps(ac):
     """Seat heat / vent levels per seat, from the car's own A/C config. A seat counts only when
     its feature flag is on AND its level list offers something: the J5 publishes
@@ -1987,6 +2050,14 @@ class H(BaseHTTPRequestHandler):
                         self.wfile.write(b": ping\n\n"); self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError, OSError):
                 pass                                   # tab closed
+            return
+        if path == "/api/carreport":                   # "Add my car" issue: redacted model/config/frames
+            if not self._authed():
+                self._send(401, b'{"error":"auth"}', "application/json"); return
+            try:
+                self._send(200, car_report().encode(), "text/plain; charset=utf-8")
+            except Exception as e:
+                self._send(500, ("car report failed: %r" % (e,)).encode()[:300], "text/plain")
             return
         if path == "/api/controls":                    # what this car supports + opcodes to test
             if not self._authed():

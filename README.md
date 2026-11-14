@@ -30,7 +30,7 @@ Per-wheel tyre pressures appear when your car has direct TPMS; cars with indirec
 > CarLinko is Chery Group's app — so "works on CarLinko" realistically means "works across Chery
 > Group", not literally any car. Four cars is a strong signal, not proof: bytes we haven't mapped
 > may well differ, and no pure-ICE car has been tried. If you have a different car, please try it
-> and file a [compatibility report](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md) — a second car
+> and file a [car report](https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml) — a second car
 > was worth more to this project than any amount of staring at the first. 🙏
 
 ## Demo
@@ -334,7 +334,7 @@ generates correct ones for your user and paths, so you shouldn't need to.
 ### Known cars
 
 Settings other owners have confirmed. Please add yours via a
-[compatibility report](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md).
+[car report](https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml).
 
 These are **applied automatically** from your detected model — the table lives in
 [`tools/known_cars.py`](tools/known_cars.py), and anything you set in `creds.json` still wins.
@@ -511,8 +511,9 @@ The protocol notes in [docs/api-map.md](docs/api-map.md) and [docs/control-opcod
 are a shared reference; corrections from any of these projects are welcome.
 
 ## Contributing
-Other Jaecoo / CarLinko owners welcome — a [compatibility report](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md)
-(does it work on your car/region?) is the most useful thing right now. See
+Other Jaecoo / CarLinko owners welcome — an [Add my car](https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml) report
+is the most useful thing right now: in the dashboard, **Account → Report my car** copies a redacted
+report (no plate, VIN or location) to paste into it. See
 [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for privacy/security.
 Questions → [Discussions](https://github.com/GodrezJr2/openlinko/discussions).
 
