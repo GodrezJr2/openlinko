@@ -1042,6 +1042,30 @@ def parked_drain(data):
                 "dt": time.strftime("%d %b", time.localtime(ts1))}   # loop ascending -> ends newest
     return best
 
+V12_AWAKE = 13.2   # above this the DC-DC converter is topping the 12V up from the main pack
+
+def volt12_history(data, days=30):
+    """Per local day for the last `days`: lowest and highest 12V reading, and the median of the
+    readings taken while the DC-DC was off (the battery's own resting voltage, None if the car
+    never slept that day). Walks the frames newest-first and stops at the cutoff."""
+    cutoff = time.time() - days * 86400
+    by = {}
+    for ts, dt, d in reversed(data):
+        if ts < cutoff:
+            break
+        v = d.get("volt12")
+        if not v:
+            continue
+        by.setdefault(time.strftime("%Y-%m-%d", time.localtime(ts)), []).append(v)
+    out = []
+    for day in sorted(by):
+        vs = by[day]
+        rest = sorted(v for v in vs if v < V12_AWAKE)
+        out.append({"d": day, "lo": round(min(vs), 2), "hi": round(max(vs), 2),
+                    "rest": round(rest[len(rest) // 2], 2) if rest else None,
+                    "awake": round(100 * (len(vs) - len(rest)) / len(vs))})
+    return out
+
 def insights(out):
     """Actionable read-only insights from the data: running cost, charge forecast, real range."""
     ins = {}
@@ -1179,6 +1203,10 @@ def demo_summary():
                          "next_due_dt": time.strftime("%d %b", time.localtime(now + (BALANCE_DAYS - 4) * 86400)),
                          "state": "ok", "balance_due": False},
         "drain": None, "volt12_min7d": 12.7, "volt12_status": "ok",
+        "volt12_hist": [{"d": time.strftime("%Y-%m-%d", time.localtime(time.time() - (29 - i) * 86400)),
+                         "lo": round(12.6 + 0.1 * math.sin(i), 2), "hi": 14.2 if i % 3 else 13.0,
+                         "rest": round(12.7 + 0.08 * math.sin(i), 2), "awake": 30 if i % 3 else 0}
+                        for i in range(30)],
         "insights": {}, "moving": False,
     }
     out["insights"] = insights(out)
@@ -1425,6 +1453,14 @@ def _summary():
         mn = min(v7)
         out["volt12_min7d"] = round(mn, 2)
         out["volt12_status"] = "critical" if mn < 12.0 else ("low" if mn < 12.5 else "ok")
+    out["volt12_hist"] = volt12_history(data)
+    # Judge health on the resting voltage, not the raw minimum: single readings dip ~0.4 V under
+    # load (wake-up, A/C blower) while the battery itself sits fine, which flagged "critical" daily.
+    rest7 = [h["rest"] for h in out["volt12_hist"][-7:] if h["rest"] is not None]
+    if rest7:
+        r = min(rest7)
+        out["volt12_rest7d"] = r
+        out["volt12_status"] = "critical" if r < 12.0 else ("low" if r < 12.5 else "ok")
     out["insights"] = insights(out)
     lf = out.get("lifetime") or {}                     # saved-vs-petrol over distance actually driven
     rpkm_l = out["insights"].get("rp_per_km")
