@@ -289,16 +289,43 @@ sudah membuatkan yang benar sesuai user dan path-mu, jadi harusnya tak perlu.
 
 ## Mau di-host di mana
 
-Butuh host yang **nyala 24/7** (logger polling terus buat tren + riwayat charge). **HP doang ga
-cukup** — iOS ga bisa jalanin server background sama sekali, Android (Termux) gampang dibunuh OS.
-Jadi host-nya di tempat lain, HP cuma jadi browser (add to home screen jadi PWA).
+Butuh host yang **nyala 24/7** (logger polling terus buat tren + riwayat charge). HP yang kamu
+bawa sehari-hari ga bisa jadi host: iOS ga bisa jalanin server background sama sekali, dan Android
+bakal matiin app background di HP yang dibawa-bawa. Tapi **HP Android bekas yang dicolok charger**
+bisa (lihat [HP Android bekas (Termux)](#hp-android-bekas-termux) di bawah). HP kamu sendiri cukup
+jadi browser (add to home screen jadi PWA).
 
 | Host | Biaya | Catatan |
 | --- | --- | --- |
 | PC nganggur / laptop lama / **Raspberry Pi** di rumah | gratis | paling privat; akses lewat [Tailscale](https://tailscale.com) |
+| **HP Android bekas** dicolok charger (Termux) | gratis | ga perlu PC; lihat [di bawah](#hp-android-bekas-termux). Masih baru, belum dites di banyak HP |
 | **VPS** murah (Hetzner, Contabo, DigitalOcean…) | ~$4/bln | paling gampang nyala terus; privat pakai Tailscale, atau set `dashboard_password` |
 | **Fly.io / Railway / Render** free tier | gratis | deploy Docker image; set `dashboard_password`. Host yang cuma kasih satu service + satu volume bisa jalanin logger bareng dashboard pakai start command `bash railway_start.sh` (lihat bawah) |
 | **Oracle Cloud Free / Google e2-micro** | gratis | VM nyala terus gratis |
+
+### HP Android bekas (Termux)
+
+HP Android 7+ yang udah ga kepake bisa jadi server yang nyala terus: colok charger, sambung Wi-Fi, taruh di laci.
+
+1. Install **Termux** dan **Termux:Boot** dari [F-Droid](https://f-droid.org/packages/com.termux/)
+   (Termux versi Play Store udah ketinggalan). Buka Termux:Boot sekali.
+2. Di Termux:
+   ```bash
+   pkg install -y git && git clone https://github.com/GodrezJr2/openlinko ~/openlinko
+   bash ~/openlinko/tools/termux-setup.sh
+   ```
+3. Buka alamat yang muncul, lalu login.
+
+Skripnya install Python + dua library, nahan wake-lock, nyalain ulang dashboard kalau mati, dan
+jalan lagi otomatis setelah HP restart. Kontrolnya: `openlinko start | stop | restart | status | log | update`.
+
+Biar ga dimatiin Android:
+- **Pengaturan → Aplikasi → Termux → Baterai → Tidak dibatasi.** Di Xiaomi / OPPO / vivo / realme
+  juga izinkan **Autostart** dan kunci Termux di layar aplikasi terbaru.
+- Android 12+ bisa matiin proses anak Termux ("phantom process killer"). Di Android 14+ nyalakan
+  **Opsi pengembang → Disable child process restrictions**; di 12–13 jalankan sekali dari PC:
+  `adb shell settings put global settings_enable_monitor_phantom_procs false`.
+- Biar bisa dibuka dari luar rumah, install app Tailscale di HP ini dan HP kamu.
 
 > **Host publik = wajib set dashboard password.** Di host privat/rumah/Tailscale boleh dibiarin
 > kebuka. Begitu URL-nya bisa dicapai dari internet, set `dashboard_password` (halaman login →

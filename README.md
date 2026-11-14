@@ -361,13 +361,15 @@ approximate on one.
 ## Where to run it
 
 It needs a host that's on **24/7** (the logger polls continuously to build trends and charge
-history). **A phone alone won't do it** — iOS can't run a background server at all, and Android
-(Termux) gets killed by battery management. So the host runs elsewhere and your phone is just the
-browser (add it to your home screen as a PWA).
+history). Your daily phone can't be that host: iOS can't run a background server at all, and
+Android kills background apps on a phone you carry around. A **spare Android phone left on the
+charger** can, though (see [Old Android phone (Termux)](#old-android-phone-termux) below). Your own
+phone is then just the browser (add it to your home screen as a PWA).
 
 | Host | Cost | Notes |
 | --- | --- | --- |
 | A spare PC / old laptop / **Raspberry Pi** at home | free | best privacy; reach it over [Tailscale](https://tailscale.com) |
+| A spare **Android phone** on the charger (Termux) | free | no PC needed; see [below](#old-android-phone-termux). New, not yet tested on many phones |
 | A small **VPS** (Hetzner, Contabo, DigitalOcean…) | ~$4/mo | easiest always-on; keep it private with Tailscale, or set a `dashboard_password` |
 | **Fly.io / Railway / Render** free tier | free | deploy the Docker image; set a `dashboard_password`. A host that gives you one service and one volume can run the logger alongside the dashboard with the start command `bash railway_start.sh` (see below) |
 | **Oracle Cloud Free / Google e2-micro** | free | always-on free VM |
@@ -384,6 +386,31 @@ browser (add it to your home screen as a PWA).
 > variable; the script writes it into the volume on every boot. It is deliberately **not** the
 > image's default: CarLinko allows one live session per account, so a `docker run` that quietly
 > started a logger would knock your own CarLinko app offline.
+
+### Old Android phone (Termux)
+
+Any Android 7+ phone you no longer use can be the always-on box: on the charger, on Wi-Fi, in a drawer.
+
+1. Install **Termux** and **Termux:Boot** from [F-Droid](https://f-droid.org/packages/com.termux/)
+   (the Play Store build of Termux is outdated). Open Termux:Boot once.
+2. In Termux:
+   ```bash
+   pkg install -y git && git clone https://github.com/GodrezJr2/openlinko ~/openlinko
+   bash ~/openlinko/tools/termux-setup.sh
+   ```
+3. Open the address it prints and sign in.
+
+It installs Python and two libraries, holds a wake-lock, restarts the dashboard if it ever
+exits, and starts it again after a reboot. Control it with `openlinko start | stop | restart |
+status | log | update`.
+
+To keep Android from killing it:
+- **Settings → Apps → Termux → Battery → Unrestricted.** On Xiaomi / OPPO / vivo / realme also allow
+  **Autostart** and lock Termux in the recent-apps screen.
+- Android 12+ may kill Termux's child processes ("phantom process killer"). On Android 14+ turn on
+  **Developer options → Disable child process restrictions**; on 12–13 run once from a PC:
+  `adb shell settings put global settings_enable_monitor_phantom_procs false`.
+- To reach it away from home, install the Tailscale app on this phone and on yours.
 
 ### Per-OS setup
 The Docker path is identical on every OS — install Docker, then `docker compose up -d` and open
