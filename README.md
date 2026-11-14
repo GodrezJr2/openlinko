@@ -470,15 +470,15 @@ host one service holding everyone's credentials. Different models can override
 
 ## Related projects
 
-OpenLinko was the first open-source CarLinko client (June 2026). Other projects on the same cloud:
+OpenLinko was the first open-source CarLinko client (June 2026). Open-source projects built
+alongside it, on the same cloud:
 
-- [elad-bar/ha-carlinko](https://github.com/elad-bar/ha-carlinko) + [carlinko-card](https://github.com/elad-bar/carlinko-card) — native Home Assistant integration with remote controls and a Lovelace card
-- [jebentancour/ha-carlinko](https://github.com/jebentancour/ha-carlinko) — Home Assistant integration (Omoda E5, Uruguay)
-- [thititongumpun/ha-carlinko](https://github.com/thititongumpun/ha-carlinko) — Home Assistant integration (Omoda C5 EV, Thailand)
-- [francoisj1/carlinko-python](https://github.com/francoisj1/carlinko-python) — Python SDK, work in progress (South Africa region)
+- [elad-bar/ha-carlinko](https://github.com/elad-bar/ha-carlinko) + [carlinko-card](https://github.com/elad-bar/carlinko-card) — native Home Assistant integration with remote controls and a Lovelace card. elad-bar extracted the control opcode table this repo now uses ([#11](https://github.com/GodrezJr2/openlinko/issues/11)).
+- [jebentancour/ha-carlinko](https://github.com/jebentancour/ha-carlinko) — Home Assistant integration, read-only (Omoda E5, Uruguay). jebentancour also found the REST telemetry endpoint and decoded more of the blob ([#5](https://github.com/GodrezJr2/openlinko/issues/5), [#15](https://github.com/GodrezJr2/openlinko/issues/15)).
+- [thititongumpun/ha-carlinko](https://github.com/thititongumpun/ha-carlinko) — Home Assistant integration (Omoda C5 EV, Thailand).
 
 The protocol notes in [docs/api-map.md](docs/api-map.md) and [docs/control-opcodes.md](docs/control-opcodes.md)
-are meant as a shared reference — corrections and additions from any of these projects are welcome.
+are a shared reference; corrections from any of these projects are welcome.
 
 ## Contributing
 Other Jaecoo / CarLinko owners welcome — a [compatibility report](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md)
