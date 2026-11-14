@@ -1,4 +1,6 @@
-# J5 EV Dashboard — a self-hosted telematics dashboard for the Jaecoo J5 EV
+# OpenLinko — a self-hosted dashboard for CarLinko cars
+
+*Jaecoo · Omoda · Chery · Exeed — BEV and PHEV. Formerly **J5 EV Dashboard**: it started on a Jaecoo J5 EV, and owners have since confirmed it on the Omoda E5, Tiggo 7 PHEV and Tiggo 8 PHEV.*
 
 **English** · [Bahasa Indonesia](README.id.md)
 
@@ -27,7 +29,7 @@ project just reads your own account and presents it properly.
 > CarLinko is Chery Group's app — so "works on CarLinko" realistically means "works across Chery
 > Group", not literally any car. Four cars is a strong signal, not proof: bytes we haven't mapped
 > may well differ, and no pure-ICE car has been tried. If you have a different car, please try it
-> and file a [compatibility report](https://github.com/GodrezJr2/j5-ev-dashboard/issues/new?template=compatibility.md) — a second car
+> and file a [compatibility report](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md) — a second car
 > was worth more to this project than any amount of staring at the first. 🙏
 
 ## Demo
@@ -38,7 +40,7 @@ project just reads your own account and presents it properly.
 (`python server.py --demo`, sample data, no account needed). Cut in [Motion Studio](https://github.com/GodrezJr2/motion-studio).*
 
 Recorded on a real car instead: [1½ minutes on a phone against a real Jaecoo J5 EV](https://github.com/user-attachments/assets/f17d167d-cbf9-4eb0-92b4-44361f6da6a5)
-(Classic interface, plate and VIN masked, also [downloadable](https://github.com/GodrezJr2/j5-ev-dashboard/releases/download/assets/j5-dashboard-demo.mp4)).
+(Classic interface, plate and VIN masked, also [downloadable](https://github.com/GodrezJr2/openlinko/releases/download/assets/j5-dashboard-demo.mp4)).
 
 ## Screenshots
 
@@ -244,8 +246,8 @@ If you have a machine that stays on — a home server, a mini PC, a Raspberry Pi
 whole thing: virtualenv, dependencies, login, and both systemd services so it survives reboots.
 
 ```bash
-git clone https://github.com/GodrezJr2/j5-ev-dashboard.git
-cd j5-ev-dashboard
+git clone https://github.com/GodrezJr2/openlinko.git
+cd openlinko
 ./tools/install.sh                 # add --tailscale to reach it from your phone anywhere
 ```
 
@@ -284,7 +286,7 @@ generates correct ones for your user and paths, so you shouldn't need to.
 | key | required | what |
 | --- | --- | --- |
 | `email`, `password` | ✅ | your CarLinko login (plaintext over TLS; stored locally only) |
-| `region` | | API region, default `sea` (Southeast Asia). **Login fails with the wrong one** — an account made in Europe/Middle East/Africa needs `emea` (reported on a J5 Noble in Israel, [#6](https://github.com/GodrezJr2/j5-ev-dashboard/issues/6)). If a correct password is refused, try another region before anything else |
+| `region` | | API region, default `sea` (Southeast Asia). **Login fails with the wrong one** — an account made in Europe/Middle East/Africa needs `emea` (reported on a J5 Noble in Israel, [#6](https://github.com/GodrezJr2/openlinko/issues/6)). If a correct password is refused, try another region before anything else |
 | `vehicle_id`, `device_sn` | auto | your vehicle id + device serial — **`setup.py` fills these for you** |
 | `vehicle` | auto | `{plate, model, vin}` — auto-detected; UI hides plate+VIN by default |
 | `battery_kwh`, `wltp_kwh_100` | | usable pack size + WLTP reference. **The car never reports pack size**, so it comes from you or from the [known-cars table](#known-cars); an unrecognised model is asked at setup and labelled *assumed* in the UI until you set it. It scales every kWh, cost and efficiency figure |
@@ -325,7 +327,7 @@ generates correct ones for your user and paths, so you shouldn't need to.
 ### Known cars
 
 Settings other owners have confirmed. Please add yours via a
-[compatibility report](https://github.com/GodrezJr2/j5-ev-dashboard/issues/new?template=compatibility.md).
+[compatibility report](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md).
 
 These are **applied automatically** from your detected model — the table lives in
 [`tools/known_cars.py`](tools/known_cars.py), and anything you set in `creds.json` still wins.
@@ -333,9 +335,9 @@ These are **applied automatically** from your detected model — the table lives
 | Car | `battery_kwh` | `tpms_scale` | `tyre_unit` | Notes |
 | --- | --- | --- | --- | --- |
 | Jaecoo J5 EV (ID) | `58.9` | n/a | `psi` | Reference car. *Indirect* TPMS — reports tyre **status only**, never a pressure |
-| Chery Tiggo 8 PHEV 2025 (ZA) | `18.3` | `1.779` | `bar` | Direct TPMS (raw `136` = 2.42 bar). PHEV — fuel level, fuel consumption and fuel range all decoded ([#2](https://github.com/GodrezJr2/j5-ev-dashboard/issues/2)) |
-| Chery Tiggo 7 PHEV (MY) | `18.3` | `1.779` | `psi` | Same pack and tyre scale as the Tiggo 8 PHEV, independently confirmed ([#3](https://github.com/GodrezJr2/j5-ev-dashboard/issues/3)). Malaysia badges it **`TIGGO 7 CSH`** — matched automatically |
-| Omoda E5 2025 (UY) | `61` | — | — | LFP, WLTP 15.5 kWh/100 km — owner-confirmed ([#5](https://github.com/GodrezJr2/j5-ev-dashboard/issues/5)). Everything works incl. login, auto-detect and charging |
+| Chery Tiggo 8 PHEV 2025 (ZA) | `18.3` | `1.779` | `bar` | Direct TPMS (raw `136` = 2.42 bar). PHEV — fuel level, fuel consumption and fuel range all decoded ([#2](https://github.com/GodrezJr2/openlinko/issues/2)) |
+| Chery Tiggo 7 PHEV (MY) | `18.3` | `1.779` | `psi` | Same pack and tyre scale as the Tiggo 8 PHEV, independently confirmed ([#3](https://github.com/GodrezJr2/openlinko/issues/3)). Malaysia badges it **`TIGGO 7 CSH`** — matched automatically |
+| Omoda E5 2025 (UY) | `61` | — | — | LFP, WLTP 15.5 kWh/100 km — owner-confirmed ([#5](https://github.com/GodrezJr2/openlinko/issues/5)). Everything works incl. login, auto-detect and charging |
 
 **If your car isn't listed**, nothing is invented on your behalf: `setup.py` asks for the pack size,
 the battery card labels it *assumed* until you set it, and the spec card stays hidden rather than
@@ -408,7 +410,7 @@ If the terminal isn't your thing, paste this into an AI coding agent (Claude Cod
 running on the machine that will host it:
 
 ```text
-Set up the open-source project https://github.com/GodrezJr2/j5-ev-dashboard on this machine.
+Set up the open-source project https://github.com/GodrezJr2/openlinko on this machine.
 Clone it, then bring it up with Docker (docker compose up -d). It serves a login page on
 http://localhost:8088 — tell me the URL when it's running. I'll enter my CarLinko email and
 password there myself; do not ask me for them. If Docker isn't available, fall back to the
@@ -460,10 +462,10 @@ host one service holding everyone's credentials. Different models can override
 - `PRODUCT.md`, `DESIGN.md` — product + visual design notes
 
 ## Contributing
-Other Jaecoo / CarLinko owners welcome — a [compatibility report](https://github.com/GodrezJr2/j5-ev-dashboard/issues/new?template=compatibility.md)
+Other Jaecoo / CarLinko owners welcome — a [compatibility report](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md)
 (does it work on your car/region?) is the most useful thing right now. See
 [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for privacy/security.
-Questions → [Discussions](https://github.com/GodrezJr2/j5-ev-dashboard/discussions).
+Questions → [Discussions](https://github.com/GodrezJr2/openlinko/discussions).
 
 ## License
 [MIT](LICENSE). Not affiliated with Jaecoo, Chery, or CarLinko. Trademarks belong to their owners.

@@ -1,4 +1,6 @@
-# Dashboard J5 EV — dashboard telematik self-hosted untuk Jaecoo J5 EV
+# OpenLinko — dashboard self-hosted untuk mobil berbasis CarLinko
+
+*Jaecoo · Omoda · Chery · Exeed — BEV dan PHEV. Dulu bernama **J5 EV Dashboard**: dimulai di Jaecoo J5 EV, dan pemilik lain sudah mengonfirmasi di Omoda E5, Tiggo 7 PHEV dan Tiggo 8 PHEV.*
 
 [English](README.md) · **Bahasa Indonesia**
 
@@ -28,7 +30,7 @@ project ini cuma baca akunmu sendiri dan nampilinnya dengan benar.
 > berarti "jalan se-Chery Group", bukan harfiah mobil apa pun. Dua mobil itu sinyal kuat, bukan
 > bukti: byte yang belum kami petakan bisa saja beda, dan mobil ICE murni belum pernah dicoba.
 > Kalau mobilmu beda, tolong coba & kirim
-> [laporan kompatibilitas](https://github.com/GodrezJr2/j5-ev-dashboard/issues/new?template=compatibility.md) ya — satu mobil kedua
+> [laporan kompatibilitas](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md) ya — satu mobil kedua
 > jauh lebih berharga buat proyek ini daripada berapa lama pun menatap yang pertama. 🙏
 
 ## Demo
@@ -39,7 +41,7 @@ project ini cuma baca akunmu sendiri dan nampilinnya dengan benar.
 (`python server.py --demo`, data contoh, tanpa akun). Diedit di [Motion Studio](https://github.com/GodrezJr2/motion-studio).*
 
 Versi mobil asli: [1½ menit di HP dengan Jaecoo J5 EV asli](https://github.com/user-attachments/assets/f17d167d-cbf9-4eb0-92b4-44361f6da6a5)
-(tampilan Classic, plat & VIN disamarkan, bisa juga [diunduh](https://github.com/GodrezJr2/j5-ev-dashboard/releases/download/assets/j5-dashboard-demo.mp4)).
+(tampilan Classic, plat & VIN disamarkan, bisa juga [diunduh](https://github.com/GodrezJr2/openlinko/releases/download/assets/j5-dashboard-demo.mp4)).
 
 ## Screenshot
 
@@ -235,8 +237,8 @@ Kalau punya mesin yang nyala terus — home server, mini PC, Raspberry Pi — in
 virtualenv, dependensi, login, dan dua service systemd biar selamat dari reboot.
 
 ```bash
-git clone https://github.com/GodrezJr2/j5-ev-dashboard.git
-cd j5-ev-dashboard
+git clone https://github.com/GodrezJr2/openlinko.git
+cd openlinko
 ./tools/install.sh                 # tambah --tailscale untuk akses dari HP di mana pun
 ```
 
@@ -320,7 +322,7 @@ Kalau ga biasa sama terminal, paste ini ke AI coding agent (Claude Code, Cursor,
 di mesin yang bakal jadi host:
 
 ```text
-Set up the open-source project https://github.com/GodrezJr2/j5-ev-dashboard on this machine.
+Set up the open-source project https://github.com/GodrezJr2/openlinko on this machine.
 Clone it, then bring it up with Docker (docker compose up -d). It serves a login page on
 http://localhost:8088 — tell me the URL when it's running. I'll enter my CarLinko email and
 password there myself; do not ask me for them. If Docker isn't available, fall back to the
@@ -370,10 +372,10 @@ bukan nge-host satu layanan yang menyimpan kredensial semua orang. Model berbeda
 - `PRODUCT.md`, `DESIGN.md` — catatan produk + desain visual
 
 ## Kontribusi
-Pemilik Jaecoo / CarLinko lain dipersilakan — [laporan kompatibilitas](https://github.com/GodrezJr2/j5-ev-dashboard/issues/new?template=compatibility.md)
+Pemilik Jaecoo / CarLinko lain dipersilakan — [laporan kompatibilitas](https://github.com/GodrezJr2/openlinko/issues/new?template=compatibility.md)
 (jalan gak di mobil/region kamu?) paling berguna sekarang. Lihat
 [CONTRIBUTING.md](CONTRIBUTING.md), dan [SECURITY.md](SECURITY.md) untuk privasi/keamanan.
-Tanya-tanya → [Discussions](https://github.com/GodrezJr2/j5-ev-dashboard/discussions).
+Tanya-tanya → [Discussions](https://github.com/GodrezJr2/openlinko/discussions).
 
 ## Lisensi
 [MIT](LICENSE). Tidak berafiliasi dengan Jaecoo, Chery, maupun CarLinko. Merek dagang milik pemiliknya masing-masing.

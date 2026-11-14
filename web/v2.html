@@ -2311,8 +2311,8 @@ function renderAcct(){
     {ic: 'camera', t: 'Update car photo',  s: 'Re-fetch the render from CarLinko', fn: async () => {
         const d = await api('api/photorefresh', {method: 'POST'});
         toast(d.ok ? 'Photo updated' : (d.error || 'failed')); if(d.ok) load(); }},
-    {ic: 'link',   t: 'About', s: 'J5 EV Dashboard V2 · self-hosted', fn: () =>
-        toast('J5 EV Dashboard V2 · CarLinko, reverse-engineered')},
+    {ic: 'link',   t: 'About', s: 'OpenLinko · self-hosted CarLinko dashboard', fn: () =>
+        toast('OpenLinko · CarLinko, reverse-engineered')},
   ];
 
   $('acctRows').innerHTML =
