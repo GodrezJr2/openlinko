@@ -475,8 +475,7 @@ OpenLinko was the first open-source CarLinko client (June 2026). Other projects 
 - [elad-bar/ha-carlinko](https://github.com/elad-bar/ha-carlinko) + [carlinko-card](https://github.com/elad-bar/carlinko-card) — native Home Assistant integration with remote controls and a Lovelace card
 - [jebentancour/ha-carlinko](https://github.com/jebentancour/ha-carlinko) — Home Assistant integration (Omoda E5, Uruguay)
 - [thititongumpun/ha-carlinko](https://github.com/thititongumpun/ha-carlinko) — Home Assistant integration (Omoda C5 EV, Thailand)
-- [francoisj1/carlinko-python](https://github.com/francoisj1/carlinko-python) — Python client
-- [AlanSRU/ioBroker.omoda](https://github.com/AlanSRU/ioBroker.omoda) — ioBroker adapter
+- [francoisj1/carlinko-python](https://github.com/francoisj1/carlinko-python) — Python SDK, work in progress (South Africa region)
 
 The protocol notes in [docs/api-map.md](docs/api-map.md) and [docs/control-opcodes.md](docs/control-opcodes.md)
 are meant as a shared reference — corrections and additions from any of these projects are welcome.
