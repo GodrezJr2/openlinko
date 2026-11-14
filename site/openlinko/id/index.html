@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenLinko: dashboard CarLinko untuk Jaecoo, Omoda dan Chery</title>
+<meta name="description" content="Dashboard gratis dan open source untuk mobil di aplikasi CarLinko: Jaecoo J5 EV, Omoda E5, Chery Tiggo 7 dan 8 PHEV. Baterai, jarak tempuh, trip, biaya charging, ban dan kontrol jarak jauh, jalan di PC sendiri atau HP Android bekas.">
+<link rel="canonical" href="https://jaylabb.my.id/openlinko/id/">
+<link rel="alternate" hreflang="en" href="https://jaylabb.my.id/openlinko/">
+<link rel="alternate" hreflang="id" href="https://jaylabb.my.id/openlinko/id/">
+<link rel="alternate" hreflang="x-default" href="https://jaylabb.my.id/openlinko/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenLinko">
+<meta property="og:locale" content="id_ID">
+<meta property="og:title" content="OpenLinko: dashboard untuk mobil CarLinko kamu">
+<meta property="og:description" content="Trip, biaya charging, konsumsi energi, ban dan kontrol jarak jauh untuk Jaecoo, Omoda dan Chery. Self-hosted dan open source.">
+<meta property="og:url" content="https://jaylabb.my.id/openlinko/id/">
+<meta property="og:image" content="https://jaylabb.my.id/openlinko/img/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1c1a" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../img/icon.svg" type="image/svg+xml">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","inLanguage":"id","mainEntity":[
+ {"@type":"Question","name":"Ada dashboard untuk Jaecoo J5 EV?","acceptedAnswer":{"@type":"Answer","text":"Ada. OpenLinko dibuat di Jaecoo J5 EV. Ia membaca data yang sama dengan aplikasi CarLinko lalu menyimpan riwayatnya: trip, konsumsi energi bersih setelah regen, sesi charging beserta biayanya, ban dan aki 12 V."}},
+ {"@type":"Question","name":"Bisa untuk Omoda, Chery Tiggo atau Exeed?","acceptedAnswer":{"@type":"Answer","text":"Sudah terbukti di Omoda E5, Chery Tiggo 7 PHEV dan Chery Tiggo 8 PHEV selain J5. Mobil Chery Group lain yang pakai aplikasi CarLinko kemungkinan besar juga jalan."}},
+ {"@type":"Question","name":"Apakah ini aplikasi resmi CarLinko?","acceptedAnswer":{"@type":"Answer","text":"Bukan. Ini proyek open source independen, tidak berafiliasi dengan Jaecoo, Omoda, Chery atau CarLinko. Login hanya ke akun kamu sendiri."}},
+ {"@type":"Question","name":"Perlu server?","acceptedAnswer":{"@type":"Answer","text":"Perlu satu perangkat yang nyala terus: PC Windows, Raspberry Pi, VPS kecil, atau HP Android bekas yang dicolok charger dengan Termux. HP yang kamu bawa tinggal buka di browser."}},
+ {"@type":"Question","name":"Bayar?","acceptedAnswer":{"@type":"Answer","text":"Gratis. Lisensi MIT dan jalan di perangkat yang sudah kamu punya."}}
+]}
+</script>
+<style>
+:root{
+  --bg:oklch(0.963 0.006 95);--card:oklch(0.995 0.003 95);--card2:oklch(0.94 0.007 95);
+  --ink:oklch(0.25 0.012 95);--mut:oklch(0.46 0.012 95);--line:oklch(0.9 0.008 95);
+  --acc:oklch(0.52 0.10 158);--acc-ink:oklch(0.99 0.01 158);--hero:oklch(0.93 0.012 240);
+  --r1:10px;--r2:14px;--r3:18px;--r4:24px;--ease:cubic-bezier(.16,1,.3,1);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:oklch(0.175 0.006 95);--card:oklch(0.232 0.007 95);--card2:oklch(0.27 0.008 95);
+  --ink:oklch(0.96 0.005 95);--mut:oklch(0.75 0.008 95);--line:oklch(0.315 0.008 95);
+  --acc:oklch(0.72 0.12 158);--acc-ink:oklch(0.18 0.03 158);--hero:oklch(0.25 0.015 240);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:oklch(0.175 0.006 95);--card:oklch(0.232 0.007 95);--card2:oklch(0.27 0.008 95);
+  --ink:oklch(0.96 0.005 95);--mut:oklch(0.75 0.008 95);--line:oklch(0.315 0.008 95);
+  --acc:oklch(0.72 0.12 158);--acc-ink:oklch(0.18 0.03 158);--hero:oklch(0.25 0.015 240);color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:450 16px/1.6 -apple-system,"SF Pro Text",Inter,"Segoe UI",system-ui,sans-serif;
+  font-variant-numeric:tabular-nums}
+a{color:inherit}
+a:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+@media (min-width:720px){.wrap{padding:0 32px}}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:750;font-size:18px;text-decoration:none}
+.brand img{width:28px;height:28px}
+nav.top{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+nav.top a{font-size:14px;font-weight:600;color:var(--mut);text-decoration:none;padding:8px 10px;border-radius:var(--r1)}
+nav.top a:hover{color:var(--ink);background:var(--card2)}
+@media (max-width:600px){nav.top a.opt{display:none}}
+
+.hero{display:grid;gap:36px;align-items:center;padding:28px 0 56px}
+@media (min-width:880px){.hero{grid-template-columns:1.05fr .95fr;padding:48px 0 80px}}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin:0 0 14px}
+h1{font-size:clamp(34px,6.2vw,58px);line-height:1.04;letter-spacing:-.025em;margin:0 0 18px;font-weight:780;text-wrap:balance}
+.lede{font-size:clamp(17px,2.1vw,19px);color:var(--mut);max-width:34em;margin:0 0 26px;text-wrap:pretty}
+.brands{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 28px;padding:0;list-style:none}
+.brands li{font-size:14px;font-weight:650;padding:6px 12px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.cta{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:15px;text-decoration:none;
+  padding:13px 18px;border-radius:var(--r2);transition:transform .14s var(--ease),background .22s var(--ease)}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--acc);color:var(--acc-ink)}
+.btn.sec{background:var(--card);border:1px solid var(--line)}
+.btn svg{width:18px;height:18px}
+.fine{font-size:13.5px;color:var(--mut);margin:16px 0 0}
+
+.phones{position:relative;display:flex;justify-content:center;gap:16px;min-height:0}
+.shot{display:block;border-radius:var(--r4);overflow:hidden;background:var(--card);
+  box-shadow:0 1px 2px oklch(0 0 0/.06),0 18px 40px -18px oklch(0 0 0/.28);border:1px solid var(--line)}
+.shot img{display:block;width:100%;height:auto}
+.phones .shot{width:min(46%,260px)}
+.phones .shot:nth-child(2){margin-top:56px}
+@media (max-width:420px){.phones .shot:nth-child(2){margin-top:36px}}
+
+section{padding:56px 0;border-top:1px solid var(--line)}
+h2{font-size:clamp(26px,4vw,36px);line-height:1.12;letter-spacing:-.02em;margin:0 0 12px;font-weight:760;text-wrap:balance}
+.sub{color:var(--mut);max-width:40em;margin:0 0 32px}
+
+.feats{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));margin:0;padding:0;list-style:none}
+.feats li{background:var(--card);border:1px solid var(--line);border-radius:var(--r3);padding:20px}
+.feats h3{font-size:17px;margin:0 0 6px;font-weight:720}
+.feats p{margin:0;color:var(--mut);font-size:15px}
+.feats .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--card2);color:var(--acc);margin-bottom:12px}
+.feats .ic svg{width:19px;height:19px}
+
+.strip{display:grid;gap:14px;grid-template-columns:repeat(2,1fr);margin-top:28px}
+@media (min-width:720px){.strip{grid-template-columns:repeat(4,1fr)}}
+.strip figure{margin:0}
+.strip figcaption{font-size:13.5px;color:var(--mut);margin-top:10px;text-align:center}
+
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:var(--r3);overflow:hidden;font-size:15px}
+th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;background:var(--card2)}
+.ok{color:var(--acc);font-weight:700}
+.tablewrap{overflow-x:auto;border-radius:var(--r3)}
+
+.runs{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.run{background:var(--card);border:1px solid var(--line);border-radius:var(--r3);padding:20px}
+.run h3{margin:0 0 6px;font-size:17px}
+.run p{margin:0 0 12px;color:var(--mut);font-size:15px}
+code,pre{font:500 13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre{margin:0;padding:12px 14px;background:var(--card2);border-radius:var(--r1);overflow-x:auto;white-space:pre}
+.tag{display:inline-block;font-size:12px;font-weight:700;color:var(--acc);margin-left:6px}
+
+.split{display:grid;gap:28px;align-items:center}
+@media (min-width:820px){.split{grid-template-columns:1fr 1fr}}
+ul.ticks{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+ul.ticks li{padding-left:28px;position:relative}
+ul.ticks li::before{content:"";position:absolute;left:4px;top:.55em;width:12px;height:7px;border-left:2px solid var(--acc);border-bottom:2px solid var(--acc);transform:rotate(-45deg)}
+
+details{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:0 18px;margin-bottom:10px}
+summary{cursor:pointer;font-weight:680;padding:16px 0;list-style:none;display:flex;justify-content:space-between;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--mut);font-weight:500;font-size:20px;line-height:1}
+details[open] summary::after{content:"\2212"}
+details p{margin:0 0 16px;color:var(--mut)}
+
+footer{border-top:1px solid var(--line);padding:32px 0 48px;color:var(--mut);font-size:14px}
+footer .row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+footer a{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <a class="brand" href="./"><img src="../img/icon.svg" alt="" width="28" height="28">OpenLinko</a>
+  <nav class="top" aria-label="Situs">
+    <a class="opt" href="#mobil">Mobil</a><a class="opt" href="#pasang">Pasang</a><a class="opt" href="#faq">FAQ</a>
+    <a href="../" hreflang="en" lang="en">English</a>
+    <a href="https://github.com/GodrezJr2/openlinko">GitHub</a>
+  </nav>
+</header>
+
+<main>
+<div class="hero">
+  <div>
+    <p class="eyebrow">Dashboard CarLinko open source</p>
+    <h1>Dashboard yang nggak ada di aplikasi CarLinko</h1>
+    <p class="lede">Trip, konsumsi energi, biaya charging, ban dan kontrol jarak jauh untuk Jaecoo, Omoda atau Chery kamu.
+      Membaca akun CarLinko kamu sendiri dan menyimpan riwayat yang dibuang aplikasinya. Jalan di PC atau HP Android bekas.</p>
+    <ul class="brands" aria-label="Merek">
+      <li>Jaecoo</li><li>Omoda</li><li>Chery</li><li>Exeed</li>
+    </ul>
+    <div class="cta">
+      <a class="btn pri" href="https://github.com/GodrezJr2/openlinko/blob/main/README.id.md"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.83 1.18 3.08 0 4.41-2.69 5.39-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>Ambil di GitHub</a>
+      <a class="btn sec" href="#pasang">Cara pasang</a>
+    </div>
+    <p class="fine">Gratis, lisensi MIT. Tidak berafiliasi dengan Jaecoo, Omoda, Chery atau CarLinko.</p>
+  </div>
+  <div class="phones">
+    <span class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="../img/v2-home-dark.jpg"><img src="../img/v2-home-light.jpg" width="585" height="1266" alt="Layar utama OpenLinko: jarak tempuh 318 km, baterai 72%, mobil, tombol cepat buka kunci, A/C, cari mobil dan bagasi"></picture></span>
+    <span class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="../img/v2-energy-dark.jpg"><img src="../img/v2-energy-light.jpg" width="585" height="1266" alt="Layar energi: kWh per 100 km per hari, bersih setelah regen, dibanding rating WLTP" loading="lazy"></picture></span>
+  </div>
+</div>
+
+<section id="fitur" aria-labelledby="f-h">
+  <h2 id="f-h">Yang nggak ditunjukkan aplikasi CarLinko</h2>
+  <p class="sub">Aplikasinya cuma menunjukkan kondisi mobil saat ini. OpenLinko mencatat setiap update yang dikirim mobil ke cloud-nya, jadi angkanya terkumpul dari hari ke hari.</p>
+  <ul class="feats">
+    <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/></svg></div>
+      <h3>Konsumsi energi asli</h3><p>kWh/100 km per hari, bersih setelah regen, di samping angka head unit dan rating WLTP.</p></li>
+    <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
+      <h3>Sesi charging dan biayanya</h3><p>Tiap sesi lengkap dengan kWh masuk, kurva daya dan biaya. Di mobil referensi, biayanya cocok dengan struk PLN Mobile 99,6 sampai 99,9%.</p></li>
+    <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4m8-4v4"/></svg></div>
+      <h3>Trip dan kalender berkendara</h3><p>Jarak, energi dan biaya charging tiap hari, dengan trip yang dideteksi dari odometer.</p></li>
+    <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <h3>Kontrol jarak jauh</h3><p>Kunci, A/C dengan suhu, jendela, bagasi dan cari mobil, dikirim dengan cara yang sama seperti aplikasi resminya. Lewat cloud, tanpa Bluetooth.</p></li>
+    <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 4v5.5M12 14.5V20M4 12h5.5m5 0H20"/></svg></div>
+      <h3>Ban, aki 12 V dan baterai</h3><p>Tekanan ban di mobil dengan TPMS langsung, tegangan aki 12 V, dan kebiasaan charging untuk baterai LFP.</p></li>
+    <li><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+      <h3>Add-on head unit</h3><p>Climate Gesture: atur kipas dan suhu dengan geser dua jari di layar J5. Dipasang dari dashboard.</p></li>
+  </ul>
+
+  <div class="strip">
+    <figure><span class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="../img/v2-dist-dark.jpg"><img src="../img/v2-dist-light.jpg" width="585" height="1266" loading="lazy" alt="Kalender jarak dengan km, energi dan biaya per hari"></picture></span><figcaption>Kalender berkendara</figcaption></figure>
+    <figure><span class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="../img/v2-chg-dark.jpg"><img src="../img/v2-chg-light.jpg" width="585" height="1266" loading="lazy" alt="Halaman charging: kurva daya sesi terakhir, kWh dan biaya"></picture></span><figcaption>Sesi charging</figcaption></figure>
+    <figure><span class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="../img/v2-doors-dark.jpg"><img src="../img/v2-doors-light.jpg" width="585" height="1266" loading="lazy" alt="Pintu dan jendela di mobil 3D dengan kontrol jarak jauh"></picture></span><figcaption>Pintu dan kontrol</figcaption></figure>
+    <figure><span class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="../img/v2-plan-dark.jpg"><img src="../img/v2-plan-light.jpg" width="585" height="1266" loading="lazy" alt="Kalkulator charging: waktu, kWh dan biaya ke persen target"></picture></span><figcaption>Kalkulator charging</figcaption></figure>
+  </div>
+</section>
+
+<section id="mobil" aria-labelledby="c-h">
+  <h2 id="c-h">Mobil yang didukung</h2>
+  <p class="sub">Sudah dikonfirmasi pemiliknya di empat mobil, tiga merek dan empat negara. Struktur datanya identik di semuanya, jadi kelihatannya ini format platform CarLinko, bukan per model. Mobil Chery Group lain di aplikasi CarLinko kemungkinan besar jalan.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Mobil</th><th>Jenis</th><th>Negara</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Jaecoo J5 EV</td><td>Listrik</td><td>Indonesia</td><td class="ok">Mobil referensi, lengkap</td></tr>
+      <tr><td>Omoda E5</td><td>Listrik</td><td>Uruguay</td><td class="ok">Terkonfirmasi</td></tr>
+      <tr><td>Chery Tiggo 7 PHEV / Tiggo 7 CSH</td><td>Plug-in hybrid</td><td>Malaysia</td><td class="ok">Terkonfirmasi</td></tr>
+      <tr><td>Chery Tiggo 8 PHEV</td><td>Plug-in hybrid</td><td>Afrika Selatan</td><td class="ok">Terkonfirmasi</td></tr>
+      <tr><td>Jaecoo, Omoda, Chery atau Exeed lain di CarLinko</td><td>Apa saja</td><td>Mana saja</td><td>Kemungkinan jalan. <a href="https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml">Tambahkan mobilmu</a></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="pasang" aria-labelledby="r-h">
+  <h2 id="r-h">Jalan di perangkat yang sudah kamu punya</h2>
+  <p class="sub">Butuh satu perangkat yang nyala terus untuk mencatat data mobil. HP kamu, Android atau iPhone, tinggal buka di browser dan bisa ditambahkan ke layar utama.</p>
+  <div class="runs">
+    <div class="run"><h3>PC Windows</h3><p>Download repo-nya, klik dua kali <code>start.bat</code>. Semua yang dibutuhkan dipasang otomatis lalu dashboard terbuka.</p><pre>start.bat</pre></div>
+    <div class="run"><h3>HP Android bekas <span class="tag">baru</span></h3><p>Pasang Termux dan Termux:Boot dari F-Droid, biarkan HP dicolok charger. Nyala lagi sendiri setelah restart.</p><pre>pkg install -y git
+git clone https://github.com/GodrezJr2/openlinko ~/openlinko
+bash ~/openlinko/tools/termux-setup.sh</pre></div>
+    <div class="run"><h3>Linux, Raspberry Pi atau VPS</h3><p>Satu skrip memasang service-nya, plus Tailscale opsional supaya bisa dibuka dari mana saja tanpa dibuka ke internet.</p><pre>git clone https://github.com/GodrezJr2/openlinko
+cd openlinko &amp;&amp; ./tools/install.sh --tailscale</pre></div>
+  </div>
+  <p class="fine">Docker dan Home Assistant (REST) ada di <a href="https://github.com/GodrezJr2/openlinko/blob/main/README.id.md">README</a>.</p>
+</section>
+
+<section aria-labelledby="p-h">
+  <div class="split">
+    <div>
+      <h2 id="p-h">Akunmu, perangkatmu</h2>
+      <p class="sub" style="margin-bottom:20px">Nggak ada cloud OpenLinko. Dashboard login ke akun CarLinko kamu dari perangkat kamu sendiri dan datanya disimpan di situ.</p>
+      <ul class="ticks">
+        <li>Password, token, VIN dan plat nomor disimpan di file lokal yang nggak pernah di-commit.</li>
+        <li>Satu instalasi per pemilik. Bukan layanan hosting dan nggak pernah menyimpan akun orang lain.</li>
+        <li>Percobaan login dibatasi, jadi password yang salah nggak membanjiri akunmu.</li>
+        <li>CarLinko cuma izinkan satu sesi per akun, jadi akun kedua yang ditautkan ke mobil bikin aplikasi di HP tetap login.</li>
+      </ul>
+    </div>
+    <span class="shot" style="max-width:280px;justify-self:center"><picture><source media="(prefers-color-scheme: dark)" srcset="../img/v2-doors-dark.jpg"><img src="../img/v2-doors-light.jpg" width="585" height="1266" loading="lazy" alt="Tampilan pintu dan jendela"></picture></span>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="q-h">
+  <h2 id="q-h">Pertanyaan</h2>
+  <details><summary>Ada dashboard untuk Jaecoo J5 EV?</summary><p>Ada. OpenLinko dibuat di Jaecoo J5 EV. Ia membaca data yang sama dengan aplikasi CarLinko lalu menyimpan riwayatnya: trip, konsumsi energi bersih setelah regen, sesi charging beserta biayanya, ban dan aki 12 V.</p></details>
+  <details><summary>Bisa untuk Omoda, Chery Tiggo atau Exeed?</summary><p>Sudah terbukti di Omoda E5, Chery Tiggo 7 PHEV dan Chery Tiggo 8 PHEV selain J5. Mobil Chery Group lain di aplikasi CarLinko kemungkinan besar jalan. Kalau mobilmu belum ada, dashboard punya halaman <em>Report my car</em> yang menyalin laporan tanpa data pribadi untuk issue <a href="https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml">Add my car</a>.</p></details>
+  <details><summary>Apakah ini aplikasi resmi CarLinko?</summary><p>Bukan. Ini proyek open source independen, tidak berafiliasi dengan Jaecoo, Omoda, Chery atau CarLinko. Ia bicara ke cloud yang sama dengan aplikasi resmi, pakai login kamu sendiri.</p></details>
+  <details><summary>Perlu server?</summary><p>Perlu satu perangkat yang nyala terus: PC Windows, Raspberry Pi, VPS kecil, atau HP Android bekas yang dicolok charger. HP yang kamu bawa tinggal buka di browser.</p></details>
+  <details><summary>Bisa di iPhone?</summary><p>Bisa, sebagai layar untuk melihat: buka di Safari lalu tambahkan ke layar utama. iOS nggak bisa menjalankan bagian yang nyala terus, jadi itu jalan di PC, server atau HP Android bekas.</p></details>
+  <details><summary>Bisa disambung ke Home Assistant?</summary><p>Bisa, lewat REST API-nya. Ada juga integrasi Home Assistant terpisah untuk mobil CarLinko yang tercantum di README.</p></details>
+  <details><summary>Bayar?</summary><p>Gratis. Open source berlisensi MIT dan jalan di perangkat yang sudah kamu punya.</p></details>
+</section>
+</main>
+
+<footer>
+  <div class="row">
+    <span>OpenLinko, dulu J5 EV Dashboard. Lisensi MIT. Dibuat oleh <a href="https://jaylabb.my.id/">Jayson</a>.</span>
+    <span><a href="https://github.com/GodrezJr2/openlinko">GitHub</a> · <a href="../" hreflang="en" lang="en">English</a></span>
+  </div>
+  <p>Jaecoo, Omoda, Chery, Exeed dan CarLinko adalah merek dagang pemiliknya. Proyek ini tidak berafiliasi dengan mereka.</p>
+</footer>
+</div>
+</body>
+</html>
