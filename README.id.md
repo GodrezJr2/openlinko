@@ -4,15 +4,15 @@
 
 [English](README.md) · **Bahasa Indonesia**
 
-PWA mobile-first yang nampilin angka **asli** yang sebenernya udah dikirim mobilmu —
-baterai, jarak tempuh, odometer, sesi pengisian, efisiensi, status ban, kesehatan aki 12 V,
-log perjalanan, biaya seumur pakai, perencana pengisian untuk perjalanan jauh, dan peta SPKLU
-interaktif.
+PWA mobile-first untuk semua mobil yang pakai app CarLinko: baterai, jarak tempuh dan kondisi
+mobil secara live, kunci / AC / jendela / bagasi dari jauh, pemakaian energi bersih setelah regen,
+sesi dan biaya charge, ban, kesehatan aki 12 V, dan add-on head unit.
 
-Ini dibikin karena app bawaan CarLinko nyembunyiin sebagian besar info ini (ban cuma
-"normal/abnormal", ga ada total perjalanan, ga ada riwayat biaya charge, ga ada perencana
-trip). Semua di sini diturunkan dari data yang **memang sudah** dikirim mobil ke cloud-nya —
-project ini cuma baca akunmu sendiri dan nampilinnya dengan benar.
+Ini dibikin karena app bawaan CarLinko cuma nunjukin kondisi saat ini: ga ada total perjalanan,
+ga ada riwayat biaya charge, ga ada efisiensi dari waktu ke waktu. Semua di sini diturunkan dari data
+yang **memang sudah** dikirim mobil ke cloud-nya; project ini cuma baca akunmu sendiri dan nyimpen
+riwayatnya. Tekanan dan suhu ban muncul kalau mobilmu punya TPMS langsung; mobil dengan TPMS tidak
+langsung (seperti J5 EV) memang cuma kirim status, dan dashboard bilang begitu, bukan ngarang angka.
 
 > Dibangun dari mobil nyata, bukan dari lembar spesifikasi. Output biaya charge cocok dengan struk
 > PLN Mobile pemiliknya sampai **99,6–99,9 %** (lihat [Akurasi](#akurasi)) — angka itu dari satu

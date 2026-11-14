@@ -4,14 +4,15 @@
 
 **English** · [Bahasa Indonesia](README.id.md)
 
-A clean, mobile-first PWA that shows the **real** numbers your car already reports —
-battery, range, odometer, charging sessions, efficiency, tyre status, 12 V health, trip
-log, lifetime cost, a long-trip charge planner, and an interactive SPKLU (EV charger) map.
+A clean, mobile-first PWA for any car on the CarLinko app: live battery, range and state,
+remote lock / A/C / windows / tailgate, energy use net of regen, charge sessions and cost, tyres,
+12 V health, and a head-unit add-on.
 
-It exists because the stock CarLinko app hides most of this (tyres only show
-"normal/abnormal", there are no trip totals, no charge-cost history, no road-trip planner).
-Everything here is derived from data the car **already** sends to its own cloud — this
-project just reads your own account and presents it properly.
+It exists because the stock CarLinko app shows the current state and little else: no trip totals,
+no charge-cost history, no efficiency over time. Everything here is derived from data the car
+**already** sends to its own cloud. This project just reads your own account and keeps the history.
+Tyre pressures and temperatures appear when your car has direct TPMS; cars with indirect TPMS
+(like the J5 EV) only ever report a status, and the dashboard says so instead of inventing numbers.
 
 > Built against real cars, not a spec sheet. Charge-cost output matches the owner's PLN Mobile
 > receipts to **99.6–99.9 %** (see [Accuracy](#accuracy)) — that figure is from one car, since it
