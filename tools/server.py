@@ -621,7 +621,33 @@ POWERTRAIN = (_CC.get("powertrain") or KNOWN.get("powertrain") or "auto").lower(
 # LFP's discharge curve is nearly flat, so the BMS loses its SoC reference without a periodic
 # 100% charge (it re-anchors + balances cells there). ~weekly is the common OEM line; NMC has no
 # such need and prefers not to sit full, so don't nag those owners.
-BALANCE_DAYS = float(_CC.get("full_charge_days") or (7 if CHEMISTRY == "lfp" else 90))
+# The interval is learned from how hard the owner uses the pack (see balance_plan): a fixed
+# weekly 100% (Tesla's line) over-charges a light driver, whose BMS barely drifts, and parks the
+# pack at 100% more often than needed. full_charge_days in car.json pins it to a fixed number.
+BALANCE_FIXED = _CC.get("full_charge_days")
+BALANCE_DAYS = float(BALANCE_FIXED or (7 if CHEMISTRY == "lfp" else 90))   # fallback w/o history
+BALANCE_CYCLES = 1.5        # LFP: re-anchor after ~1.5 full packs of use (150% SoC drawn)
+BALANCE_MIN, BALANCE_MAX = 7, 30   # Tesla weekly .. Ford monthly
+
+
+def balance_plan(fr, full, now):
+    """Learn the 100%-charge interval from this car's own use: days it takes to draw
+    BALANCE_CYCLES packs at the last 28 days' pace, clamped to BALANCE_MIN..MAX.
+    Returns (interval_days, pct_per_week, pct_used_since_full)."""
+    if CHEMISTRY != "lfp" or BALANCE_FIXED:
+        return BALANCE_DAYS, None, None
+    cut = now - 28 * 86400; last = full[-1]["end"] if full else None
+    used28 = since = 0
+    for (t0, b0, _), (t1, b1, _) in zip(fr, fr[1:]):
+        if b1 < b0:
+            if t0 >= cut: used28 += b0 - b1
+            if last is not None and t0 >= last: since += b0 - b1
+    span = min(28.0, (now - fr[0][0]) / 86400) if fr else 0
+    if span < 7 or used28 <= 0:
+        return BALANCE_DAYS, None, since if full else None
+    per_day = used28 / span
+    days = max(BALANCE_MIN, min(BALANCE_MAX, round(BALANCE_CYCLES * 100 / per_day)))
+    return float(days), round(per_day * 7), since if full else None
 IDLE_GAP = 1800         # parked + no SoC rise for 30 min => charge session ended
 CHARGE_PARK_MIN = 600   # a real charge sits odo-flat >=10 min; regen blips (odo coarse=1km) don't
 MIN_GAIN_PCT = 2        # net SoC gain floor; drops 1% regen/noise that survives the park gate
@@ -976,20 +1002,25 @@ def analyze(data, trips, kwh_day):
     # drifts without one. Track the interval so the dashboard can say *when*, not just "overdue".
     full = [s for s in sess if s["soc1"] >= 100]
     since = (now - full[-1]["start"]) / 86400 if full else None
-    due_in = round(BALANCE_DAYS - since, 1) if since is not None else None
+    bal_days, pct_week, used_since = balance_plan(fr, full, now)
+    due_in = round(bal_days - since, 1) if since is not None else None
     out["battery_care"] = {
         "chemistry": CHEMISTRY,
-        "interval_days": BALANCE_DAYS,
+        "interval_days": bal_days,
+        "learned": pct_week is not None,                # interval comes from this car's own use
+        "pct_per_week": pct_week,                       # SoC drawn per week, last 28 days
+        "used_since_full": used_since,                  # % drawn since the last 100%
+        "target_used": round(BALANCE_CYCLES * 100) if pct_week is not None else None,
         "last_full_dt": time.strftime("%d %b", time.localtime(full[-1]["start"])) if full else None,
         "days_since_full": round(since) if since is not None else None,
         "days_to_due": due_in,                          # negative = overdue by that many days
-        "next_due_dt": (time.strftime("%d %b", time.localtime(full[-1]["start"] + BALANCE_DAYS * 86400))
+        "next_due_dt": (time.strftime("%d %b", time.localtime(full[-1]["start"] + bal_days * 86400))
                         if full else None),
         # three states, so "do it this week" reads differently from "you're well past due"
         "state": ("unknown" if not full else
-                  "overdue" if since >= BALANCE_DAYS * 2 else
-                  "due" if since >= BALANCE_DAYS else "ok"),
-        "balance_due": (not full) or (since >= BALANCE_DAYS)}   # kept for older clients
+                  "overdue" if since >= bal_days * 2 else
+                  "due" if since >= bal_days else "ok"),
+        "balance_due": (not full) or (since >= bal_days)}   # kept for older clients
     ongoing = [s for s in sess if s["ongoing"]]
     if ongoing:
         s = ongoing[-1]; lr = live_rate(s["pts"])
@@ -1231,10 +1262,11 @@ def demo_summary():
         "lifetime": {"kwh_in": 1448.0, "kwh_billed": 1612.0, "cost": 4090000, "km": 8127,
                      "since": time.strftime("%d %b", time.localtime(now - 96 * 86400)),
                      "saved": 7240000, "liters_saved": 677.3, "co2_saved": 1564},
-        "battery_care": {"chemistry": CHEMISTRY, "interval_days": BALANCE_DAYS,
+        "battery_care": {"chemistry": CHEMISTRY, "interval_days": 12.0, "learned": True,
+                         "pct_per_week": 88, "used_since_full": 52, "target_used": 150,
                          "last_full_dt": time.strftime("%d %b", time.localtime(now - 4 * 86400)),
-                         "days_since_full": 4, "days_to_due": round(BALANCE_DAYS - 4, 1),
-                         "next_due_dt": time.strftime("%d %b", time.localtime(now + (BALANCE_DAYS - 4) * 86400)),
+                         "days_since_full": 4, "days_to_due": 8.0,
+                         "next_due_dt": time.strftime("%d %b", time.localtime(now + 8 * 86400)),
                          "state": "ok", "balance_due": False},
         "drain": None, "volt12_min7d": 12.7, "volt12_status": "ok",
         "volt12_hist": [{"d": time.strftime("%Y-%m-%d", time.localtime(time.time() - (29 - i) * 86400)),

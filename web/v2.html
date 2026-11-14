@@ -1999,10 +1999,20 @@ function renderBatt(){
       '<p class="vnote">Judged on the voltage when the car sleeps. Healthy means 12.5 V or more. ' +
       'If the line keeps dropping into red, the 12V battery is getting weak and the car may stop answering the app.</p></div>' : '') +
     (bc.state ? '<div class="sech" style="padding-left:0;padding-right:0"><span class="ov">Battery care</span></div>' +
-      '<div class="panel"><div class="plbl">LFP balancing &mdash; full charge weekly</div>' +
+      '<div class="panel"><div class="plbl">Charge to 100% ' + (bc.interval_days ? 'about every ' +
+        Math.round(bc.interval_days) + ' days' : 'now and then') + '</div>' +
+      (bc.learned && bc.used_since_full != null ?
+        '<div class="socbar"><i style="width:' + Math.min(100, bc.used_since_full / bc.target_used * 100) + '%"></i></div>' : '') +
       '<div class="stats" style="border-top:0;margin-top:14px;padding-top:0">' +
       '<div><b>' + (bc.last_full_dt || '—') + '</b><span>last 100%</span></div>' +
-      '<div><b>' + (bc.next_due_dt || '—') + '</b><span>next due</span></div></div></div>' : '') +
+      (bc.learned && bc.used_since_full != null ?
+        '<div><b class="num">' + bc.used_since_full + '%</b><span>used since</span></div>' : '') +
+      '<div><b>' + (bc.next_due_dt || '—') + '</b><span>next, or sooner if you drive more</span></div></div>' +
+      '<p class="vnote">' + (bc.learned ?
+        'Learned from your driving: you use about ' + bc.pct_per_week + '% a week, so a full charge every ' +
+        Math.round(bc.interval_days) + ' days keeps the range reading accurate (once per ' + bc.target_used +
+        '% used). ' : 'A full charge lets the car re-check its battery gauge and even out the cells. ') +
+        'Finish it shortly before you drive, rather than leaving the car sitting at 100%.</p></div>' : '') +
     '<div class="sech" style="padding-left:0;padding-right:0"><span class="ov">Detail</span></div>' +
     '<div class="rowcard">' + rows.map(r =>
       '<div class="row"><span class="rl">' + r[0] + '</span><span class="rv">' + r[1] + '</span></div>').join('') +
