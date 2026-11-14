@@ -86,7 +86,7 @@ h1{font-size:clamp(34px,6.2vw,58px);line-height:1.04;letter-spacing:-.025em;marg
 .shot img{display:block;width:100%;height:auto}
 .phones .shot{width:min(46%,260px)}
 .phones .shot:nth-child(2){margin-top:56px}
-@media (max-width:420px){.phones .shot:nth-child(2){margin-top:36px}}
+@media (max-width:600px){.phones .shot{width:min(78%,300px)}.phones .shot:nth-child(2){display:none}}
 
 section{padding:56px 0;border-top:1px solid var(--line)}
 h2{font-size:clamp(26px,4vw,36px);line-height:1.12;letter-spacing:-.02em;margin:0 0 12px;font-weight:760;text-wrap:balance}
@@ -116,7 +116,7 @@ th{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu
 .run h3{margin:0 0 6px;font-size:17px}
 .run p{margin:0 0 12px;color:var(--mut);font-size:15px}
 code,pre{font:500 13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-pre{margin:0;padding:12px 14px;background:var(--card2);border-radius:var(--r1);overflow-x:auto;white-space:pre}
+pre{margin:0;padding:12px 14px;background:var(--card2);border-radius:var(--r1);white-space:pre-wrap;overflow-wrap:anywhere}
 .tag{display:inline-block;font-size:12px;font-weight:700;color:var(--acc);margin-left:6px}
 
 .split{display:grid;gap:28px;align-items:center}
@@ -153,8 +153,8 @@ footer a{color:var(--ink)}
 <div class="hero">
   <div>
     <p class="eyebrow">Dashboard CarLinko open source</p>
-    <h1>Dashboard yang nggak ada di aplikasi CarLinko</h1>
-    <p class="lede">Trip, konsumsi energi, biaya charging, ban dan kontrol jarak jauh untuk Jaecoo, Omoda atau Chery kamu.
+    <h1>Dashboard lengkap untuk Jaecoo, Omoda dan Chery kamu</h1>
+    <p class="lede">Semua yang nggak ditunjukkan aplikasi CarLinko: trip, konsumsi energi, biaya charging, ban dan kontrol jarak jauh.
       Membaca akun CarLinko kamu sendiri dan menyimpan riwayat yang dibuang aplikasinya. Jalan di PC atau HP Android bekas.</p>
     <ul class="brands" aria-label="Merek">
       <li>Jaecoo</li><li>Omoda</li><li>Chery</li><li>Exeed</li>
@@ -244,7 +244,7 @@ cd openlinko &amp;&amp; ./tools/install.sh --tailscale</pre></div>
 
 <section id="faq" aria-labelledby="q-h">
   <h2 id="q-h">Pertanyaan</h2>
-  <details><summary>Ada dashboard untuk Jaecoo J5 EV?</summary><p>Ada. OpenLinko dibuat di Jaecoo J5 EV. Ia membaca data yang sama dengan aplikasi CarLinko lalu menyimpan riwayatnya: trip, konsumsi energi bersih setelah regen, sesi charging beserta biayanya, ban dan aki 12 V.</p></details>
+  <details open><summary>Ada dashboard untuk Jaecoo J5 EV?</summary><p>Ada. OpenLinko dibuat di Jaecoo J5 EV. Ia membaca data yang sama dengan aplikasi CarLinko lalu menyimpan riwayatnya: trip, konsumsi energi bersih setelah regen, sesi charging beserta biayanya, ban dan aki 12 V.</p></details>
   <details><summary>Bisa untuk Omoda, Chery Tiggo atau Exeed?</summary><p>Sudah terbukti di Omoda E5, Chery Tiggo 7 PHEV dan Chery Tiggo 8 PHEV selain J5. Mobil Chery Group lain di aplikasi CarLinko kemungkinan besar jalan. Kalau mobilmu belum ada, dashboard punya halaman <em>Report my car</em> yang menyalin laporan tanpa data pribadi untuk issue <a href="https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml">Add my car</a>.</p></details>
   <details><summary>Apakah ini aplikasi resmi CarLinko?</summary><p>Bukan. Ini proyek open source independen, tidak berafiliasi dengan Jaecoo, Omoda, Chery atau CarLinko. Ia bicara ke cloud yang sama dengan aplikasi resmi, pakai login kamu sendiri.</p></details>
   <details><summary>Perlu server?</summary><p>Perlu satu perangkat yang nyala terus: PC Windows, Raspberry Pi, VPS kecil, atau HP Android bekas yang dicolok charger. HP yang kamu bawa tinggal buka di browser.</p></details>

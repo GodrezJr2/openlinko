@@ -96,7 +96,7 @@ h1{font-size:clamp(34px,6.2vw,58px);line-height:1.04;letter-spacing:-.025em;marg
 .shot img{display:block;width:100%;height:auto}
 .phones .shot{width:min(46%,260px)}
 .phones .shot:nth-child(2){margin-top:56px}
-@media (max-width:420px){.phones .shot:nth-child(2){margin-top:36px}}
+@media (max-width:600px){.phones .shot{width:min(78%,300px)}.phones .shot:nth-child(2){display:none}}
 
 section{padding:56px 0;border-top:1px solid var(--line)}
 h2{font-size:clamp(26px,4vw,36px);line-height:1.12;letter-spacing:-.02em;margin:0 0 12px;font-weight:760;text-wrap:balance}
@@ -126,7 +126,7 @@ th{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu
 .run h3{margin:0 0 6px;font-size:17px}
 .run p{margin:0 0 12px;color:var(--mut);font-size:15px}
 code,pre{font:500 13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-pre{margin:0;padding:12px 14px;background:var(--card2);border-radius:var(--r1);overflow-x:auto;white-space:pre}
+pre{margin:0;padding:12px 14px;background:var(--card2);border-radius:var(--r1);white-space:pre-wrap;overflow-wrap:anywhere}
 .tag{display:inline-block;font-size:12px;font-weight:700;color:var(--acc);margin-left:6px}
 
 .split{display:grid;gap:28px;align-items:center}
@@ -163,8 +163,8 @@ footer a{color:var(--ink)}
 <div class="hero">
   <div>
     <p class="eyebrow">Open-source CarLinko dashboard</p>
-    <h1>The dashboard your CarLinko app doesn't have</h1>
-    <p class="lede">Trips, energy use, charging cost, tyres and remote control for your Jaecoo, Omoda or Chery.
+    <h1>A better dashboard for your Jaecoo, Omoda or Chery</h1>
+    <p class="lede">Everything the CarLinko app doesn't show: trips, energy use, charging cost, tyres and remote control.
       It reads your own CarLinko account and keeps the history the app throws away. Runs on your PC or an old Android phone.</p>
     <ul class="brands" aria-label="Brands">
       <li>Jaecoo</li><li>Omoda</li><li>Chery</li><li>Exeed</li>
@@ -254,7 +254,7 @@ cd openlinko &amp;&amp; ./tools/install.sh --tailscale</pre></div>
 
 <section id="faq" aria-labelledby="q-h">
   <h2 id="q-h">Questions</h2>
-  <details><summary>Is there a dashboard for my Jaecoo J5 EV?</summary><p>Yes. OpenLinko was built on a Jaecoo J5 EV. It reads the same data the CarLinko app shows and keeps the history: trips, energy use net of regen, charging sessions with cost, tyres and 12 V health.</p></details>
+  <details open><summary>Is there a dashboard for my Jaecoo J5 EV?</summary><p>Yes. OpenLinko was built on a Jaecoo J5 EV. It reads the same data the CarLinko app shows and keeps the history: trips, energy use net of regen, charging sessions with cost, tyres and 12 V health.</p></details>
   <details><summary>Does it work with Omoda, Chery Tiggo or Exeed?</summary><p>It is confirmed on an Omoda E5, a Chery Tiggo 7 PHEV and a Chery Tiggo 8 PHEV as well as the J5. Other Chery Group cars on the CarLinko app very likely work. If yours isn't listed, the dashboard has a <em>Report my car</em> page that copies a redacted report for an <a href="https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml">Add my car</a> issue.</p></details>
   <details><summary>Is it an official CarLinko app?</summary><p>No. It is an independent open-source project, not affiliated with Jaecoo, Omoda, Chery or CarLinko. It talks to the same cloud the official app uses, with your own login.</p></details>
   <details><summary>Do I need a server?</summary><p>You need one thing that stays on: a Windows PC, a Raspberry Pi, a small VPS, or a spare Android phone on the charger. The phone you carry just opens it in the browser.</p></details>
