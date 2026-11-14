@@ -187,3 +187,6 @@ h2{font-weight:740;font-variation-settings:"wdth" 116;font-size:clamp(32px,4.8vw
   .rv{opacity:1;transform:none;transition:none}
   *{transition:none!important}
 }
+
+.carrow.more{text-decoration:none}
+.term .how a.zip{color:var(--volt)}

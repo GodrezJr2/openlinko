@@ -1,7 +1,9 @@
 (() => {
   const doc = document.documentElement;
   doc.classList.remove("no-js");
-  const L = window.OL || {};
+  if (window.top !== window.self) { try { window.top.location = window.location.href; } catch (e) { document.body.hidden = true; } }
+  let L = {};
+  try { L = JSON.parse(document.getElementById("ol-cfg").textContent); } catch (e) {}
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ---- a sample 73-byte status frame, laid out like the real one (docs/api-map.md) ---- */

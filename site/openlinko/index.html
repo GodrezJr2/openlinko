@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>OpenLinko: CarLinko dashboard for Jaecoo, Omoda and Chery cars</title>
 <meta name="description" content="A free, open-source dashboard for cars on the CarLinko app: Jaecoo J5 EV, Omoda E5, Chery Tiggo 7 and 8 PHEV. Trips, energy use, charging cost, tyres and remote control, self-hosted on your PC or an old Android phone.">
 <link rel="canonical" href="https://jaylabb.my.id/openlinko/">
@@ -24,10 +26,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="assets/site.css?v=1e8e11be">
 <link rel="preload" as="image" href="img/j5.webp" imagesrcset="img/j5-640.webp 640w, img/j5.webp 1006w" imagesizes="(max-width:760px) 100vw, 980px">
 <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "SoftwareApplication", "name": "OpenLinko", "alternateName": ["J5 EV Dashboard", "CarLinko dashboard"], "applicationCategory": "UtilitiesApplication", "operatingSystem": "Windows, Linux, macOS, Android (Termux), Docker", "description": "A free, open-source dashboard for cars on the CarLinko app: Jaecoo J5 EV, Omoda E5, Chery Tiggo 7 and 8 PHEV. Trips, energy use, charging cost, tyres and remote control, self-hosted on your PC or an old Android phone.", "url": "https://jaylabb.my.id/openlinko/", "downloadUrl": "https://github.com/GodrezJr2/openlinko", "codeRepository": "https://github.com/GodrezJr2/openlinko", "license": "https://opensource.org/licenses/MIT", "image": "https://jaylabb.my.id/openlinko/img/og.jpg", "inLanguage": "en", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "author": {"@type": "Person", "name": "Jayson Christopher Lim", "url": "https://jaylabb.my.id/"}}, {"@type": "FAQPage", "inLanguage": "en", "mainEntity": [{"@type": "Question", "name": "Is there a dashboard for my Jaecoo J5 EV?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. OpenLinko was built on a Jaecoo J5 EV. It reads the same data the CarLinko app shows and keeps the history: trips, energy use net of regen, charging sessions with cost, tyres and 12 V health."}}, {"@type": "Question", "name": "Does it work with Omoda, Chery Tiggo or Exeed?", "acceptedAnswer": {"@type": "Answer", "text": "It is confirmed on an Omoda E5, a Chery Tiggo 7 PHEV and a Chery Tiggo 8 PHEV as well as the J5. Other Chery Group cars on the CarLinko app very likely work, since the byte layout was identical on all four."}}, {"@type": "Question", "name": "Is it an official CarLinko app?", "acceptedAnswer": {"@type": "Answer", "text": "No. It is an independent open source project, not affiliated with Jaecoo, Omoda, Chery or CarLinko. It talks to the same cloud the official app uses, with your own login."}}, {"@type": "Question", "name": "Do I need a server?", "acceptedAnswer": {"@type": "Answer", "text": "You need one thing that stays on: a Windows PC, a Raspberry Pi, a small VPS, or a spare Android phone on the charger. The phone you carry just opens it in the browser."}}, {"@type": "Question", "name": "Does it work on iPhone?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, as the screen you look at: open it in Safari and add it to the home screen. iOS can't run the always on part, so that runs on a PC, server or spare Android phone."}}, {"@type": "Question", "name": "Does it work with Home Assistant?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, through its REST API. Separate Home Assistant integrations for CarLinko cars are also listed in the README."}}, {"@type": "Question", "name": "How much does it cost?", "acceptedAnswer": {"@type": "Answer", "text": "Nothing. It is MIT licensed and runs on hardware you already have."}}]}]}</script>
-<script>window.OL={"names": {"battery": "Battery", "range": "Range", "volt": "12 V battery", "odo": "Odometer", "cons": "Energy use", "lock": "Doors", "tyres": "Tyres (indirect TPMS)"}, "locked": "Locked", "copy": "Copy", "copied": "Copied"}</script>
+<script type="application/json" id="ol-cfg">{"names": {"battery": "Battery", "range": "Range", "volt": "12 V battery", "odo": "Odometer", "cons": "Energy use", "lock": "Doors", "tyres": "Tyres (indirect TPMS)"}, "locked": "Locked", "copy": "Copy", "copied": "Copied"}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -108,7 +110,7 @@
 <div class="carrow rv"><span class="n">Omoda E5</span><span class="m">Electric</span><span class="m">Uruguay</span><span class="st">Confirmed</span></div>
 <div class="carrow rv"><span class="n">Chery Tiggo 7 PHEV</span><span class="m">Plug-in hybrid</span><span class="m">Malaysia</span><span class="st">Confirmed</span></div>
 <div class="carrow rv"><span class="n">Chery Tiggo 8 PHEV</span><span class="m">Plug-in hybrid</span><span class="m">South Africa</span><span class="st">Confirmed</span></div>
-    <a class="carrow more rv" href="https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml" style="text-decoration:none"><span class="n">Another Jaecoo, Omoda, Chery or Exeed</span><span class="m">Any CarLinko car</span><span class="m"></span><span class="st">Add your car →</span></a>
+    <a class="carrow more rv" href="https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml"><span class="n">Another Jaecoo, Omoda, Chery or Exeed</span><span class="m">Any CarLinko car</span><span class="m"></span><span class="st">Add your car →</span></a>
   </div>
   <p class="carnote">Not listed? The dashboard has a <b>Report my car</b> page that copies a report with the plate, VIN and account ids removed, ready for an <a href="https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml">Add my car</a> issue.</p>
 </div></section>
@@ -126,7 +128,7 @@
     <div class="tb"><i></i><span>PowerShell</span><button class="copy" type="button">Copy</button></div>
     <pre><span class="c"># after downloading and unzipping the repo</span>
 <span class="p">&gt;</span> <span class="cmd">.\start.bat</span></pre>
-    <p class="how"><b>No coding.</b> Download the repo as a ZIP, unzip it, double click <code>start.bat</code>. It installs Python if needed and opens the dashboard. Sign in with your CarLinko account. <a href="https://github.com/GodrezJr2/openlinko/archive/refs/heads/main.zip" style="color:var(--volt)">ZIP ↓</a></p>
+    <p class="how"><b>No coding.</b> Download the repo as a ZIP, unzip it, double click <code>start.bat</code>. It installs Python if needed and opens the dashboard. Sign in with your CarLinko account. <a class="zip" href="https://github.com/GodrezJr2/openlinko/archive/refs/heads/main.zip">ZIP ↓</a></p>
   </div></div>
   <div class="panel" id="p-and" role="tabpanel" aria-labelledby="tb-and" hidden><div class="term">
     <div class="tb"><i></i><span>Termux</span><button class="copy" type="button">Copy</button></div>
@@ -185,6 +187,6 @@
     <p>Jaecoo, Omoda, Chery, Exeed and CarLinko are trademarks of their owners. This project is not affiliated with them.</p>
   </footer>
 </div></div>
-<script src="assets/site.js" defer></script>
+<script src="assets/site.js?v=4c18ac65" defer></script>
 </body>
 </html>

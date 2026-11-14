@@ -155,6 +155,17 @@ ID = dict(
 GH_SVG = ('<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.83 1.18 3.08 0 4.41-2.69 5.39-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>')
 
 
+def ver(name):
+    """Short content hash, so the host's 10-year cache never serves a stale asset."""
+    import hashlib
+    return hashlib.sha1((OUT / "assets" / name).read_bytes()).hexdigest()[:8]
+
+
+def safe(s):
+    """Keep JSON inside a <script> block from closing it early."""
+    return s.replace("</", "<\\/")
+
+
 def page(t):
     r = t["root"]
     ld = {"@context": "https://schema.org", "@graph": [
@@ -183,6 +194,8 @@ def page(t):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>{t['title']}</title>
 <meta name="description" content="{t['desc']}">
 <link rel="canonical" href="{t['url']}">
@@ -204,10 +217,10 @@ def page(t):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="{r}assets/site.css">
+<link rel="stylesheet" href="{r}assets/site.css?v={ver('site.css')}">
 <link rel="preload" as="image" href="{r}img/j5.webp" imagesrcset="{r}img/j5-640.webp 640w, {r}img/j5.webp 1006w" imagesizes="(max-width:760px) 100vw, 980px">
-<script type="application/ld+json">{json.dumps(ld, ensure_ascii=False)}</script>
-<script>window.OL={js_cfg}</script>
+<script type="application/ld+json">{safe(json.dumps(ld, ensure_ascii=False))}</script>
+<script type="application/json" id="ol-cfg">{safe(js_cfg)}</script>
 </head>
 <body>
 <a class="skip" href="#main">{t['skip']}</a>
@@ -275,7 +288,7 @@ def page(t):
   <p class="sub rv">{t['s3_sub']}</p>
   <div class="cars">
 {cars}
-    <a class="carrow more rv" href="{ADD}" style="text-decoration:none"><span class="n">{t['more_n']}</span><span class="m">{t['more_m']}</span><span class="m"></span><span class="st">{t['more_st']}</span></a>
+    <a class="carrow more rv" href="{ADD}"><span class="n">{t['more_n']}</span><span class="m">{t['more_m']}</span><span class="m"></span><span class="st">{t['more_st']}</span></a>
   </div>
   <p class="carnote">{t['carnote']}</p>
 </div></section>
@@ -293,7 +306,7 @@ def page(t):
     <div class="tb"><i></i><span>PowerShell</span><button class="copy" type="button">{t['copy']}</button></div>
     <pre><span class="c">{t['win_c']}</span>
 <span class="p">&gt;</span> <span class="cmd">.\\start.bat</span></pre>
-    <p class="how">{t['how_win']} <a href="{GH}/archive/refs/heads/main.zip" style="color:var(--volt)">ZIP ↓</a></p>
+    <p class="how">{t['how_win']} <a class="zip" href="{GH}/archive/refs/heads/main.zip">ZIP ↓</a></p>
   </div></div>
   <div class="panel" id="p-and" role="tabpanel" aria-labelledby="tb-and" hidden><div class="term">
     <div class="tb"><i></i><span>Termux</span><button class="copy" type="button">{t['copy']}</button></div>
@@ -343,7 +356,7 @@ def page(t):
     <p>{t['foot_tm']}</p>
   </footer>
 </div></div>
-<script src="{r}assets/site.js" defer></script>
+<script src="{r}assets/site.js?v={ver('site.js')}" defer></script>
 </body>
 </html>
 """
