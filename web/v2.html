@@ -117,13 +117,13 @@
   .hbar .hname{flex:1;min-width:0}
   .hname .hm{font-size:17px;font-weight:750;letter-spacing:.01em;display:block;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .hname .hs{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11.5px;color:var(--mut)}
+  .hname .hs{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:12.5px;color:var(--mut)}
   .hname .hs .dot{width:6px;height:6px;border-radius:50%;background:var(--fnt);flex:none;position:relative}
   .hname .hs .dot.on{background:var(--acc);box-shadow:0 0 0 3px var(--acc-sf)}
-  .rf{width:28px;height:28px;flex:none;margin:-2px -4px 0 0;display:flex;align-items:center;
+  .rf{width:44px;height:44px;flex:none;margin:-10px -12px -8px 0;border-radius:50%;display:flex;align-items:center;
     justify-content:center;color:var(--mut);transition:transform var(--t-fast) var(--eo)}
   .rf:active{transform:scale(.85)}
-  .rf svg{width:15px;height:15px}
+  .rf svg{width:17px;height:17px}
   .rf.spin svg{animation:spin .8s var(--eo)}
   @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -191,7 +191,7 @@
   .qa{position:relative;z-index:2;display:flex;justify-content:center;gap:var(--s5);
     margin:-26px 0 0;padding:0 var(--pad)}
   .qa button{display:flex;flex-direction:column;align-items:center;gap:7px;
-    font-size:10.5px;font-weight:600;color:var(--mut);transition:color var(--t-mid) linear,opacity var(--t-mid) linear}
+    font-size:12px;font-weight:600;color:var(--mut);transition:color var(--t-mid) linear,opacity var(--t-mid) linear}
   .qa .qc{width:54px;height:54px;border-radius:50%;background:var(--card);color:var(--ink);
     display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-1);
     transition:transform var(--t-fast) var(--eo),color var(--t-mid) linear,box-shadow var(--t-mid) linear}
@@ -229,15 +229,30 @@
   .clim{display:flex;flex-direction:column;justify-content:space-between;min-height:132px;cursor:pointer}
   .clim .cr{display:flex;align-items:center;justify-content:space-between}
   .clim .temp{font-size:28px;font-weight:750;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-  .step{width:32px;height:32px;flex:none;border-radius:50%;background:var(--card-2);color:var(--ink);
+  .step{position:relative;width:34px;height:34px;flex:none;border-radius:50%;background:var(--card-2);color:var(--ink);
     font-size:18px;font-weight:500;line-height:1;display:flex;align-items:center;justify-content:center;
     transition:transform var(--t-fast) var(--eo),background var(--t-mid) linear}
+  .step:after,.clim .cb:after,.pback:after{content:"";position:absolute;inset:-6px}   /* 44px+ hit area, same look */
   .step:active{transform:scale(.88);background:var(--acc-sf)}
   .step:disabled{opacity:.3}
-  .clim .cb{width:38px;height:38px;border-radius:50%;background:var(--card-2);color:var(--mut);
+  .clim .cb{position:relative;width:40px;height:40px;border-radius:50%;background:var(--card-2);color:var(--mut);
     display:flex;align-items:center;justify-content:center;flex:none}
   .clim .cb.on{background:var(--blue-sf);color:var(--blue)}
   .clim .cb svg{width:20px;height:20px}
+  /* set-point on the car's own range, cool to warm: fills the tile's middle with meaning */
+  .ctrack{position:relative;height:6px;margin:18px 4px 4px;border-radius:3px;
+    background:linear-gradient(90deg,var(--blue) 0%,oklch(0.80 0.06 230) 50%,oklch(0.74 0.15 50) 100%)}
+  .ctrack i{position:absolute;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
+    background:var(--card);box-shadow:0 0 0 2px var(--ink),var(--sh-1);transition:left var(--t-mid) var(--eo)}
+  .cscale{display:flex;justify-content:space-between;font-size:12px;color:var(--fnt);margin:6px 2px 0;
+    font-variant-numeric:tabular-nums}
+  /* pull to refresh on the home view */
+  .ptr{position:fixed;top:0;left:50%;z-index:45;width:38px;height:38px;margin-left:-19px;border-radius:50%;
+    background:var(--card);box-shadow:var(--sh-1);color:var(--ink);display:flex;align-items:center;
+    justify-content:center;transform:translate3d(0,-48px,0);opacity:0;pointer-events:none}
+  .ptr svg{width:18px;height:18px}
+  .ptr.go{transition:transform var(--t-mid) var(--eo),opacity var(--t-mid) linear}
+  .ptr.spin svg{animation:spin .8s linear infinite}
 
   /* full-width list rows, the lower half of the BYD home screen */
   .rowcard{background:var(--card);border-radius:var(--r3);box-shadow:var(--sh-1);overflow:hidden;
@@ -272,7 +287,7 @@
   .tabbar button.on{color:var(--ink)}
   .tabbar svg{width:23px;height:23px;transition:transform var(--t-mid) var(--eo)}
   .tabbar button.on svg{transform:translateY(-1px)}
-  .tabbar span{font-size:10.5px;font-weight:650}
+  .tabbar span{font-size:11px;font-weight:650}
 
   /* ---------- detail page (slide-over) ---------- */
   .page{position:fixed;inset:0;z-index:60;background:var(--bg);max-width:430px;margin:0 auto;
@@ -292,9 +307,12 @@
     .phead{background:color-mix(in oklab,var(--bg) 84%,transparent);
       -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
   }
-  .phead h2{flex:1;text-align:center;font-size:16px;font-weight:700;margin-right:36px}
-  .pback{width:32px;height:32px;margin-left:-8px;flex:none;display:flex;align-items:center;
-    justify-content:center;color:var(--ink);transition:transform var(--t-fast) var(--eo)}
+  .phead{display:grid;grid-template-columns:1fr}
+  /* title spans the bar with equal side room, so it stays centred whatever the back label says */
+  .phead h2{grid-column:1;grid-row:1;padding:0 84px;text-align:center;pointer-events:none;font-size:16px;font-weight:700;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pback{position:relative;z-index:1;grid-column:1;grid-row:1;justify-self:start;height:34px;margin-left:-6px;padding-right:6px;display:flex;
+    align-items:center;gap:5px;font-size:15px;font-weight:500;color:var(--acc-ink);transition:transform var(--t-fast) var(--eo)}
   .pback:active{transform:translateX(-2px)}
   .pback svg{width:10px;height:17px}
   .pbody{padding:var(--s2) var(--pad) 0}
@@ -313,7 +331,7 @@
   .stats>div{min-width:0}
   .stats b{display:block;font-size:16.5px;font-weight:750;letter-spacing:-.015em;
     font-variant-numeric:tabular-nums}
-  .stats span{display:block;font-size:10.5px;color:var(--fnt);margin-top:3px}
+  .stats span{display:block;font-size:12px;color:var(--fnt);margin-top:3px}
   .note{font-size:12.5px;line-height:1.6;color:var(--fnt);margin-top:var(--s4);padding:0 2px;
     user-select:text;-webkit-user-select:text}
 
@@ -370,10 +388,10 @@
   .c3l.ok span{color:var(--acc-ink)} .c3l.warn span{color:var(--warn)} .c3l.bad span{color:var(--bad)}
   .c3lock{position:absolute;top:var(--s3);right:var(--s3);display:inline-flex;align-items:center;gap:6px;
     padding:6px 11px;border-radius:var(--rf);background:var(--card);box-shadow:var(--sh-1);
-    font-size:11.5px;font-weight:650;color:var(--acc-ink)}
+    font-size:12px;font-weight:650;color:var(--acc-ink)}
   .c3lock.un{color:var(--warn)}
   .c3lock svg{width:13px;height:13px}
-  .car3d-hint{text-align:center;font-size:11px;color:var(--fnt);margin:-2px 0 var(--s3)}
+  .car3d-hint{text-align:center;font-size:12px;color:var(--fnt);margin:-2px 0 var(--s3)}
   .ckc{display:inline-flex;align-items:center;gap:6px}
   .ckc svg{width:13px;height:13px;flex:none}
 
@@ -422,10 +440,10 @@
   .huflow .fl.on{opacity:1}
   .huflow .mir{transform:scaleX(-1)}
   .huflow .dfz{left:10%;top:5%;width:80%;height:30%;border-radius:40% 40% 8px 8px;padding:0;background:none}
-  .huflow .cap{left:0;right:0;bottom:8px;text-align:center;font-size:11.5px;color:#9aa4b2}
+  .huflow .cap{left:0;right:0;bottom:8px;text-align:center;font-size:12px;color:#c3cad4}
   @keyframes huflow{to{background-position:0 105.2632%}}
-  .hucab .cap{position:absolute;bottom:-4px;left:0;right:0;text-align:center;font-size:11.5px;color:var(--mut)}
-  .acseats .rl small{display:block;font-size:11.5px;font-weight:500;color:var(--mut)}
+  .hucab .cap{position:absolute;bottom:-4px;left:0;right:0;text-align:center;font-size:12px;color:var(--mut)}
+  .acseats .rl small{display:block;font-size:12px;font-weight:500;color:var(--mut)}
   .acseats .seg button{min-width:40px;min-height:36px}
 
   /* energy bars ----------------------------------------------------------------
@@ -435,7 +453,7 @@
   .ebar{fill:var(--acc)}
   .ebar.hu{fill:var(--acc);fill-opacity:.22}
   .elegend .sw.swn{background:var(--acc);opacity:.3}
-  .plbl .plsub{display:block;font-size:11.5px;font-weight:500;color:var(--mut);letter-spacing:0;
+  .plbl .plsub{display:block;font-size:12px;font-weight:500;color:var(--mut);letter-spacing:0;
     text-transform:none;margin-top:2px}
   .calnet{font-size:12.5px;color:var(--mut);text-align:center;margin:-2px 0 var(--s3)}
   .eval{font-size:10px;font-weight:700;fill:var(--mut);font-variant-numeric:tabular-nums}
@@ -458,7 +476,7 @@
   .vleg .ok{background:var(--acc)}
   .vleg .low{background:var(--warn)}
   .vleg .bad{background:var(--bad)}
-  .vleg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:11.5px;color:var(--mut)}
+  .vleg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:12px;color:var(--mut)}
   .vleg span{display:inline-flex;align-items:center;gap:6px}
   .vleg i{display:inline-block;width:10px;height:10px;border-radius:3px}
   .vnote{margin:10px 0 0;font-size:12px;line-height:1.5;color:var(--mut)}
@@ -466,7 +484,7 @@
     padding-top:var(--s3);border-top:1px solid var(--line);text-align:center}
   .cstats b{display:block;font-size:16.5px;font-weight:750;letter-spacing:-.015em;
     font-variant-numeric:tabular-nums}
-  .cstats span{display:block;font-size:10px;color:var(--fnt);margin-top:3px}
+  .cstats span{display:block;font-size:11px;color:var(--fnt);margin-top:3px}
   .crange{text-align:center;font-size:12px;color:var(--fnt);margin-top:var(--s3);line-height:1.5;
     font-variant-numeric:tabular-nums}
   .socbar{height:8px;border-radius:var(--rf);background:oklch(0.5 0 0 / .14);overflow:hidden;margin-top:var(--s4)}
@@ -503,7 +521,7 @@
   .caltot{display:flex;gap:var(--s5);justify-content:center;margin-top:var(--s5);padding-top:var(--s4);
     border-top:1px solid var(--line);text-align:center}
   .caltot b{display:block;font-size:16.5px;font-weight:750;font-variant-numeric:tabular-nums}
-  .caltot span{display:block;font-size:10.5px;color:var(--fnt);margin-top:3px}
+  .caltot span{display:block;font-size:12px;color:var(--fnt);margin-top:3px}
   .caltot.mid{margin-top:var(--s4);padding-top:0;border-top:0}
   .calsub{text-align:center;font-size:12px;color:var(--fnt);margin-top:var(--s4)}
   .calday.off.cg{opacity:.75;pointer-events:auto;background:var(--card);box-shadow:var(--sh-1)}
@@ -542,7 +560,7 @@
   .fgrid2 b{display:block;font-size:18px;font-weight:750;font-variant-numeric:tabular-nums}
   .fgrid2 span{display:block;font-size:11px;color:var(--fnt);margin-top:3px}
   .fgrid2 b small{font-size:11px;font-weight:600;color:var(--mut)}
-  .flexc .fsub{font-size:11.5px;color:var(--fnt);margin-top:3px}
+  .flexc .fsub{font-size:12px;color:var(--fnt);margin-top:3px}
   .flexc .fbig u{letter-spacing:0}
   .flexc .fbeat{margin-top:var(--s4);padding:10px;border-radius:var(--r2);text-align:center;
     font-size:12.5px;font-weight:700;color:var(--acc-ink);background:var(--acc-sf)}
@@ -663,7 +681,7 @@
   .hutag.ok{background:var(--acc-sf);color:var(--acc-ink)}
   .humedia{border-radius:var(--r2);overflow:hidden;background:var(--card-2);position:relative}
   .humedia svg,.humedia video{display:block;width:100%;height:auto}
-  .humedia .cap{position:absolute;left:10px;bottom:9px;font-size:11.5px;font-weight:700;color:var(--mut);
+  .humedia .cap{position:absolute;left:10px;bottom:9px;font-size:12px;font-weight:700;color:var(--mut);
     letter-spacing:.04em}
   .huill{display:block;width:100%;height:auto;margin:var(--s3) 0 var(--s1)}
   .hs-scr{fill:oklch(0.22 0.016 255);stroke:var(--line);stroke-width:1.2}
@@ -782,7 +800,7 @@
   .hulist button+button{border-top:1px solid var(--line)}
   .hulist button.on{background:var(--acc-sf)}
   .hulist .rl{flex:1;min-width:0;font-size:13.5px;font-weight:650}
-  .hulist small{display:block;font-size:11.5px;font-weight:500;color:var(--fnt);margin-top:2px}
+  .hulist small{display:block;font-size:12px;font-weight:500;color:var(--fnt);margin-top:2px}
   .hukv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-top:var(--s3);font-size:12.5px}
   .hukv dt{color:var(--fnt)} .hukv dd{color:var(--ink);font-weight:600;min-width:0;overflow-wrap:anywhere}
   .huprog{margin-top:var(--s3);list-style:none;padding:0}
@@ -823,6 +841,7 @@ seats read "Not available" when the car reports none.
 A11Y: --mut ~5.6:1 and --fnt ~4.8:1 on light; both above 4.5:1 in dark. Text selection allowed on data.
 MOTION: one ease token, 140/220/320ms, transform and opacity only, prefers-reduced-motion honored. -->
 
+<div class="ptr" id="ptr" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 9.5a8 8 0 0113.3-2.7L20.5 9.5"/><path d="M20.5 4.5v5h-5"/><path d="M19.5 14.5a8 8 0 01-13.3 2.7L3.5 14.5"/><path d="M3.5 19.5v-5h5"/></svg></div>
 <div id="viewHome">
   <div id="loginGuard" role="status" hidden style="margin:12px 16px 0;padding:10px 12px;border:1px solid var(--line);
        border-left:3px solid var(--warn);font-size:13px;line-height:1.45;color:var(--ink)"></div>
@@ -1176,7 +1195,7 @@ async function fire(op, btn){        // resolves true when the car reported doin
 function renderHero(){
   $('hModel').textContent = (S.vehicle && S.vehicle.model) || 'My car';
   countTo($('hRange'), S.range_km != null ? Math.round(S.range_km) : null);
-  $('hDot').className = 'dot' + (S.online ? ' on' : '');
+  $('hDot').className = 'dot' + ((S.moving || (S.charging && S.charging.active)) ? ' on' : '');   // green = car busy, not just reachable
   $('hState').textContent =
     S.moving ? 'Driving' : (S.charging && S.charging.active) ? 'Charging' : 'Powered off';
   $('hWhen').textContent = '\u00b7  Updated ' + (ago(S.updated) || 'never');
@@ -1235,6 +1254,7 @@ function renderQA(){
     b.innerHTML = '<span class="qc">' + icon(d.k) + '</span>' + d.label;
     b.onclick = async () => {
       if(PENDING.has(d.op)) return;            // still waiting on the car for this one
+      buzz(8);
       if(d.ask && !(await ask(d.label + '?', d.askNote || 'The command is sent to the car now.'))) return;
       fire(d.op, b);
     };
@@ -1326,6 +1346,9 @@ function row(ic, label, val, cls, page){
 }
 
 let acSynced = false;
+function acPct(){ const r = acRange(); return Math.round((acTarget - r.mn) / ((r.mx - r.mn) || 1) * 100); }
+// a light tick on taps that change something (Android; iOS Safari ignores it)
+function buzz(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 function renderCards(){
   const ds = doorSummary();
   const sp = acSetPoint();
@@ -1357,7 +1380,9 @@ function renderCards(){
         '<span><span class="t">A/C</span><span class="s ' + (S.ac_on ? 'ok' : '') + '" id="climState">' +
           cabin + '</span></span>' +
         '<button class="cb' + (S.ac_on ? ' on' : '') + '" data-page="ac" aria-label="Climate detail">' +
-          icon('ac') + '</button></div></div>' +
+          icon('ac') + '</button></div>' +
+      '<div class="ctrack"><i id="climThumb" style="left:' + acPct() + '%"></i></div>' +
+      '<div class="cscale"><span>' + acRange().mn + '\u00b0</span><span>' + acRange().mx + '\u00b0</span></div></div>' +
     '<div style="display:grid;gap:12px">' +
       card('door', 'Doors', ds.t, ds.cls, 'doors') +
       card('tyre', 'Tyres', tyreSub, S.tyre_status === 'Normal' ? 'ok' : 'warn', 'tyres') +
@@ -1380,6 +1405,8 @@ function renderCards(){
     const r = acRange();
     acTarget = Math.min(r.mx, Math.max(r.mn, acTarget + Number(b.dataset.step) * r.st));
     $('climTemp').textContent = acTarget + '\u00b0';
+    $('climThumb').style.left = acPct() + '%';
+    buzz(6);
     sendTemp();
   });
 
@@ -2829,6 +2856,8 @@ function openPage(k, fromHistory){
     acTarget = Math.min(Math.max(acTarget, Math.ceil(CAPS.ac.min)), Math.floor(CAPS.ac.max));
   p[1]();
   const el = $(p[0]);
+  const bl = el.querySelector('.pbl');               // iOS-style back label: where you came from
+  if(bl) bl.textContent = $('viewAcct').hidden ? 'Vehicle' : 'Account';
   el.scrollTop = 0;
   el.classList.add('open');
   // the page slides in; its contents rise a beat behind it so the two read as one move
@@ -2843,6 +2872,7 @@ function closePage(fromHistory){
   openKey = null;
   if(!fromHistory) history.back();
 }
+document.querySelectorAll('.pback').forEach(b => b.insertAdjacentHTML('beforeend', '<span class="pbl">' + (SOLO ? 'Sign in' : 'Vehicle') + '</span>'));
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => closePage());
 window.addEventListener('popstate', ev => {
   const k = ev.state && ev.state.page;
@@ -2884,8 +2914,39 @@ document.addEventListener('keydown', ev => {
   }, {passive: true});
 })();
 
+// pull to refresh on the home view: drag down from the top, let go past the line to poke the car
+(function(){
+  const ind = $('ptr'), LINE = 72;
+  let sy = 0, on = false;
+  const reset = () => { ind.style.transform = ''; ind.style.opacity = ''; };
+  document.addEventListener('touchstart', ev => {
+    if(SOLO || openKey || $('viewHome').hidden || window.scrollY > 0 || ev.touches.length !== 1) return;
+    if($('sheet').classList.contains('show') || ind.classList.contains('spin')) return;
+    sy = ev.touches[0].clientY; on = true; ind.classList.remove('go');
+  }, {passive: true});
+  document.addEventListener('touchmove', ev => {
+    if(!on) return;
+    if(window.scrollY > 0){ on = false; ind.classList.add('go'); reset(); return; }
+    const d = Math.min(LINE * 1.4, Math.max(0, ev.touches[0].clientY - sy) * 0.55);
+    ind.style.opacity = Math.min(1, d / LINE);
+    ind.style.transform = 'translate3d(0,' + (d - 36) + 'px,0) rotate(' + Math.round(d * 4) + 'deg)';
+    if(d >= LINE && !ind.dataset.armed){ ind.dataset.armed = '1'; buzz(10); }
+    else if(d < LINE) delete ind.dataset.armed;
+  }, {passive: true});
+  document.addEventListener('touchend', async () => {
+    if(!on) return;
+    on = false; ind.classList.add('go');
+    if(!ind.dataset.armed){ reset(); return; }
+    delete ind.dataset.armed;
+    ind.style.transform = 'translate3d(0,' + (LINE - 36) + 'px,0)'; ind.style.opacity = '1';
+    ind.classList.add('spin');
+    try{ await $('hRefresh').onclick(); } finally { ind.classList.remove('spin'); reset(); }
+  }, {passive: true});
+})();
+
 document.querySelectorAll('.tabbar button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabbar button').forEach(x => x.classList.toggle('on', x === b));
+  if(!b.classList.contains('on')) buzz(5);
   const home = b.dataset.v === 'home';
   const shown = home ? $('viewHome') : $('viewAcct');
   $('viewHome').hidden = !home; $('viewAcct').hidden = home;
