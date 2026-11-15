@@ -2030,7 +2030,7 @@ function healthPanel(pk){
   h += hdots(pts, pk);
   h += '<p class="vnote">' + (pk.soh != null ?
     'Worked out from ' + n + ' ' + where + ': a full battery took ' + pk.base_kwh100 + ' kWh at first and ' +
-      pk.now_kwh100 + ' kWh lately. Give or take about ' + pk.margin + '%, so small moves are noise.' +
+      pk.now_kwh100 + ' kWh lately. Give or take about ' + (pk.margin || 3) + '%, so small moves are noise.' +
       (pk.early && pk.need ? ' It firms up after ' + pk.need + ' long charges' + (eta ? ', ' + eta : '') + '.' : '') :
     (n ? 'First reading after ' + (pk.need || 6) + ' long charges' + (eta ? ', ' + eta + ' at your pace' : '') + '. ' :
       'No long charge logged yet. ') +
