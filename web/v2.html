@@ -240,10 +240,15 @@
   .clim .cb.on{background:var(--blue-sf);color:var(--blue)}
   .clim .cb svg{width:20px;height:20px}
   /* set-point on the car's own range, cool to warm: fills the tile's middle with meaning */
-  .ctrack{position:relative;height:6px;margin:18px 4px 4px;border-radius:3px;
+  /* the track is a real slider: a tall invisible hit strip around a 6px bar */
+  .cslide{margin:8px 0 -8px;padding:12px 4px;touch-action:none;cursor:pointer;outline:none}
+  .cslide:focus-visible .ctrack i{box-shadow:0 0 0 2px var(--ink),0 0 0 6px var(--acc-sf)}
+  .cslide.drag .ctrack i{transition:none;transform:scale(1.2)}
+  .ctrack{position:relative;height:6px;border-radius:3px;
     background:linear-gradient(90deg,var(--blue) 0%,oklch(0.80 0.06 230) 50%,oklch(0.74 0.15 50) 100%)}
   .ctrack i{position:absolute;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
-    background:var(--card);box-shadow:0 0 0 2px var(--ink),var(--sh-1);transition:left var(--t-mid) var(--eo)}
+    background:var(--card);box-shadow:0 0 0 2px var(--ink),var(--sh-1);
+    transition:left var(--t-mid) var(--eo),transform var(--t-fast) var(--eo)}
   .cscale{display:flex;justify-content:space-between;font-size:12px;color:var(--fnt);margin:6px 2px 0;
     font-variant-numeric:tabular-nums}
   /* pull to refresh on the home view */
@@ -1346,10 +1351,39 @@ function row(ic, label, val, cls, page){
 }
 
 let acSynced = false;
+// one place that moves the home A/C tile: number, thumb, slider value; ticks and sends only on change
+function setClim(v, quiet){
+  const r = acRange();
+  v = Math.min(r.mx, Math.max(r.mn, Math.round((v - r.mn) / r.st) * r.st + r.mn));
+  v = Math.round(v * 10) / 10;
+  const changed = v !== acTarget;
+  acTarget = v;
+  $('climTemp').textContent = acTarget + '\u00b0';
+  $('climThumb').style.left = acPct() + '%';
+  $('climSlide').setAttribute('aria-valuenow', acTarget);
+  if(changed || !quiet){ buzz(6); sendTemp(); }
+}
+// drag (or tap) anywhere on the bar to pick a temperature; arrow keys step it
+function wireClimSlide(){
+  const el = $('climSlide'); if(!el) return;
+  let moved = false;
+  const at = ev => { const b = el.querySelector('.ctrack').getBoundingClientRect(), r = acRange();
+    return r.mn + Math.min(1, Math.max(0, (ev.clientX - b.left) / b.width)) * (r.mx - r.mn); };
+  el.onpointerdown = ev => { ev.stopPropagation(); el.setPointerCapture(ev.pointerId); el.classList.add('drag');
+    moved = true; setClim(at(ev), true); };
+  el.onpointermove = ev => { if(el.classList.contains('drag')) setClim(at(ev), true); };
+  el.onpointerup = el.onpointercancel = () => el.classList.remove('drag');
+  el.onclick = ev => { ev.stopPropagation(); if(!moved) return; moved = false; };   // never opens the Climate page
+  el.onkeydown = ev => {
+    const d = {ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1}[ev.key];
+    if(d){ ev.preventDefault(); setClim(acTarget + d * acRange().st, true); }
+  };
+}
 function acPct(){ const r = acRange(); return Math.round((acTarget - r.mn) / ((r.mx - r.mn) || 1) * 100); }
 // a light tick on taps that change something (Android; iOS Safari ignores it)
 function buzz(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 function renderCards(){
+  if(document.querySelector('.cslide.drag')) return;   // a live poll must not rebuild the tile mid-drag
   const ds = doorSummary();
   const sp = acSetPoint();
   if(!acSynced && sp != null){ acTarget = sp; acSynced = true; }   // start the stepper at the car's own set-point
@@ -1381,7 +1415,9 @@ function renderCards(){
           cabin + '</span></span>' +
         '<button class="cb' + (S.ac_on ? ' on' : '') + '" data-page="ac" aria-label="Climate detail">' +
           icon('ac') + '</button></div>' +
-      '<div class="ctrack"><i id="climThumb" style="left:' + acPct() + '%"></i></div>' +
+      '<div class="cslide" id="climSlide" role="slider" tabindex="0" aria-label="A/C temperature" aria-valuemin="' +
+        acRange().mn + '" aria-valuemax="' + acRange().mx + '" aria-valuenow="' + acTarget + '">' +
+        '<div class="ctrack"><i id="climThumb" style="left:' + acPct() + '%"></i></div></div>' +
       '<div class="cscale"><span>' + acRange().mn + '\u00b0</span><span>' + acRange().mx + '\u00b0</span></div></div>' +
     '<div style="display:grid;gap:12px">' +
       card('door', 'Doors', ds.t, ds.cls, 'doors') +
@@ -1404,11 +1440,9 @@ function renderCards(){
     ev.stopPropagation();
     const r = acRange();
     acTarget = Math.min(r.mx, Math.max(r.mn, acTarget + Number(b.dataset.step) * r.st));
-    $('climTemp').textContent = acTarget + '\u00b0';
-    $('climThumb').style.left = acPct() + '%';
-    buzz(6);
-    sendTemp();
+    setClim(acTarget);
   });
+  wireClimSlide();
 
   // warm any value the poll actually changed; rise once on the first paint only
   let i = 0;
