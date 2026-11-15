@@ -9,6 +9,11 @@ Use it to find which property holds drive mode / regen level:
 
     python research/hu_probe.py watch                  # live: print props as they change
 
+Seat / mirror hunt (press the seat memory button, fold the mirrors, move the seat with
+its own switches, one thing at a time, and note which props move):
+
+    python research/hu_probe.py --focus seat watch
+
 Needs the laptop on the same hotspot/LAN as the head unit (ADB on :5555, root via su).
 It only ever runs `lshal debug ... --get`; it never writes a property.
 """
@@ -26,7 +31,11 @@ NAMES = os.path.join(ROOT, ".claude", "headunit-assets", "vhal", "names.tsv")
 SNAPS = os.path.join(ROOT, ".claude", "headunit-assets", "vhal", "snaps")
 
 # Props worth watching first for a Kinex-style app (drive mode / regen / pedal feel).
-FOCUS = re.compile(r"REGEN|EGYREC|DRIVEMODE|DRVMOD|PEDAL|CREEP|BRAKE|EPS|STEER|SPORT|ECO", re.I)
+PRESETS = {
+    "drive": r"REGEN|EGYREC|DRIVEMODE|DRVMOD|PEDAL|CREEP|BRAKE|EPS|STEER|SPORT|ECO",
+    "seat": r"SEAT|MIRR|FOLD|SCU|DSM|PSM|MEM|LUMB|HDREST",
+}
+FOCUS = re.compile(PRESETS["drive"], re.I)
 
 _BLOCK = re.compile(r"\.prop = (\d+)(.*?)(?=\.prop = |\Z)", re.S)
 _VALS = re.compile(r"(int32|int64|float)Values = \[\d+\]\{([^}]*)\}")
@@ -137,13 +146,17 @@ def cmd_watch(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--ip", help="head unit IP (default: scan the local /24)")
+    p.add_argument("--focus", choices=sorted(PRESETS), default="drive",
+                   help="which props watch/diff put first (default: drive)")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("snap"); s.add_argument("name"); s.set_defaults(fn=cmd_snap)
     d = sub.add_parser("diff"); d.add_argument("a"); d.add_argument("b"); d.set_defaults(fn=cmd_diff)
     w = sub.add_parser("watch"); w.add_argument("--every", type=float, default=1.0)
-    w.add_argument("--all", action="store_true", help="watch every prop, not just drive/regen ones")
+    w.add_argument("--all", action="store_true", help="watch every prop, not just the --focus ones")
     w.set_defaults(fn=cmd_watch)
     args = p.parse_args()
+    global FOCUS
+    FOCUS = re.compile(PRESETS[args.focus], re.I)
     args.fn(args)
 
 
