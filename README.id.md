@@ -111,7 +111,8 @@ live dan satu layar untuk tiap bagiannya. Tampilan Classic masih ada di `/index.
 - **Energi** — kWh/100 km per trip dan rata-rata bergulir **bersih setelah regen** (angka head unit
   tetap ada sebagai "sebelum regen"), total kWh, biaya dan km, hemat vs bensin.
 - **Baterai & pengisian** — sesi charge terdeteksi otomatis (kWh masuk pack, kWh dibayar, biaya),
-  kurva charge, tips perawatan baterai, kesehatan aki 12 V.
+  kurva charge, tips perawatan baterai, kesehatan aki 12 V, dan perkiraan kasar kesehatan baterai
+  dari charge panjang (AC di rumah atau DC cepat, tanpa alat OBD).
 - **Ban** — tekanan per roda kalau mobil punya TPMS langsung; satu status di mobil dengan TPMS tidak langsung.
 - **Share card** — gambar statistik mobilmu yang rapi untuk dibagikan, tanpa plat dan VIN.
 - **Add-on head unit** — Climate Gesture: atur kipas dan suhu pakai dua jari di head unit J5,

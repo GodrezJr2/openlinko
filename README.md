@@ -111,7 +111,8 @@ and one screen per part of it. The classic interface is still at `/index.html` (
 - **Energy** — per-trip and rolling kWh/100 km **net of regen** (the head-unit figure is kept as
   "before regen"), lifetime kWh, cost and km, savings vs petrol.
 - **Battery & charging** — auto-detected charge sessions (kWh into the pack, kWh billed, cost),
-  charge curves, battery-care hints, 12 V health.
+  charge curves, battery-care hints, 12 V health, and a rough battery-health trend learned from
+  long charges (home AC or fast DC, no OBD dongle needed).
 - **Tyres** — per-wheel pressure where the car reports direct TPMS; a single status on indirect-TPMS cars.
 - **Share card** — a clean image of your car's stats to post, with plate and VIN masked.
 - **Head unit add-on** — Climate Gesture: two-finger fan and temperature control on the J5 head

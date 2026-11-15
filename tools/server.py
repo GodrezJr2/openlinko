@@ -1076,35 +1076,52 @@ def parked_drain(data):
 
 V12_AWAKE = 13.2   # above this the DC-DC converter is topping the 12V up from the main pack
 
-def pack_health(data, sess, n=6):
-    """Battery health from charging history alone. The car reports the charger's live power
-    (b62-63); integrated over a session and divided by the SoC gained it gives kWh per full pack.
-    A fading pack needs fewer kWh per 100%, so the recent median over the first sessions' median
-    is a capacity trend -- relative to when logging began, not to factory-new. Only clean DC
-    sessions count (>=40% gained, no >2 min data hole, peak >=20 kW) so taper/AC mix stays fair."""
+def pack_health(data, sess, n=6, n_early=3):
+    """Rough battery health from charging history alone, no OBD dongle. The car reports the
+    charger's live power (b62-63); integrated over a session and divided by the SoC gained it
+    gives kWh per full pack. A fading pack needs fewer kWh per 100%, so the recent median over the
+    first sessions' median is a capacity trend -- relative to when logging began, not to
+    factory-new. Only long sessions count (>=40% gained, no data hole). DC (peak >=20 kW) and AC
+    read on different sides of the onboard charger (~64 vs ~54 kWh/100% on two J5s), so each
+    mode keeps its own baseline and the one with more sessions is shown. 3 vs 3 sessions gives
+    an early, looser reading; 6 vs 6 the settled one."""
     import bisect
     ts = [f[0] for f in data]
-    pts = []
+    pts = {"dc": [], "ac": []}
     for s in sess:
         gain = s["soc1"] - s["soc0"]
         if gain < 40 or s.get("ongoing"):
             continue
         i0 = bisect.bisect_left(ts, s["start"] - 120); i1 = min(bisect.bisect_right(ts, s["end"] + 120), len(data) - 1)
-        e = pk = 0.0; hole = False
+        e = pk = 0.0; gap = 0
         for k in range(i0, i1):
             dt = data[k + 1][0] - data[k][0]
-            if dt > 120: hole = True; break
+            gap = max(gap, dt)
             p = data[k][2].get("charge_power") or 0
             e += p * dt / 3600.0; pk = max(pk, p)
-        if hole or pk < 20 or e <= 0:
+        mode = "dc" if pk >= 20 else "ac"
+        # DC power swings, so a 2 min hole already skews it; slow AC is flat, 10 min is harmless
+        if e <= 0 or pk < 1 or gap > (120 if mode == "dc" else 600):
             continue
-        pts.append({"d": time.strftime("%Y-%m-%d", time.localtime(s["start"])), "kwh100": round(e / gain * 100, 1)})
-    if len(pts) < 2 * n:
-        return {"soh": None, "sessions": len(pts), "points": pts}
+        pts[mode].append({"d": time.strftime("%Y-%m-%d", time.localtime(s["start"])),
+                          "kwh100": round(e / gain * 100, 1)})
+    mode = "ac" if len(pts["ac"]) > len(pts["dc"]) else "dc"
+    p = pts[mode]; other = "ac" if mode == "dc" else "dc"
+    out = {"soh": None, "mode": mode, "sessions": len(p), "points": p,
+           "other": {"mode": other, "sessions": len(pts[other])}}
+    k = n if len(p) >= 2 * n else n_early if len(p) >= 2 * n_early else 0
+    need = 2 * (n_early if k == 0 else n)              # sessions until the next stage
+    out["need"] = need if len(p) < 2 * n else None
+    if data and p and out["need"]:                     # ETA from this car's own pace of long charges
+        days = max(1.0, (time.time() - data[0][0]) / 86400)
+        out["eta_days"] = round((need - len(p)) / (len(p) / days))
+    if not k:
+        return out
     med = lambda v: sorted(v)[len(v) // 2]
-    base = med([p["kwh100"] for p in pts[:n]]); now = med([p["kwh100"] for p in pts[-n:]])
-    return {"soh": min(100, round(now / base * 100)), "base_kwh100": base, "now_kwh100": now,
-            "since": pts[0]["d"], "sessions": len(pts), "points": pts}
+    base = med([x["kwh100"] for x in p[:k]]); now = med([x["kwh100"] for x in p[-k:]])
+    out.update(soh=min(100, round(now / base * 100)), base_kwh100=base, now_kwh100=now,
+               since=p[0]["d"], early=k < n, margin=3 if k >= n else 5)
+    return out
 
 
 def volt12_history(data, days=30):
