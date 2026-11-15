@@ -238,6 +238,9 @@
   .clim .cb{position:relative;width:40px;height:40px;border-radius:50%;background:var(--card-2);color:var(--mut);
     display:flex;align-items:center;justify-content:center;flex:none}
   .clim .cb.on{background:var(--blue-sf);color:var(--blue)}
+  .clim .cb{transition:transform var(--t-fast) var(--eo),background var(--t-mid) linear}
+  .clim .cb:active{transform:scale(.9)}
+  .clim .cb.busy{opacity:.45;pointer-events:none}
   .clim .cb svg{width:20px;height:20px}
   /* set-point on the car's own range, cool to warm: fills the tile's middle with meaning */
   /* the track is a real slider: a tall invisible hit strip around a 6px bar */
@@ -1261,7 +1264,7 @@ function renderQA(){
       if(PENDING.has(d.op)) return;            // still waiting on the car for this one
       buzz(8);
       if(d.ask && !(await ask(d.label + '?', d.askNote || 'The command is sent to the car now.'))) return;
-      fire(d.op, b);
+      if(d.k === 'ac') acPower(!acOn, b); else fire(d.op, b);
     };
     qa.appendChild(b);
   });
@@ -1352,6 +1355,19 @@ function row(ic, label, val, cls, page){
 
 let acSynced = false;
 // one place that moves the home A/C tile: number, thumb, slider value; ticks and sends only on change
+// home tile status line while the A/C is off and a new target is waiting
+function acHint(){
+  const el = $('climState'); if(!el || S.ac_on) return;
+  const sp = acSetPoint();
+  el.textContent = (sp == null || sp !== acTarget) ? 'Off \u00b7 starts at ' + acTarget + '\u00b0' : 'Not turned on';
+}
+// power the A/C from anywhere; on start, send the target too if it differs from the car's own
+async function acPower(on, btn){
+  buzz(8);
+  const ok = await fire(on ? '741001' : '741000', btn);
+  if(ok && on && acTarget !== acSetPoint()) await fire(tempOp(acTarget));
+  return ok;
+}
 function setClim(v, quiet){
   const r = acRange();
   v = Math.min(r.mx, Math.max(r.mn, Math.round((v - r.mn) / r.st) * r.st + r.mn));
@@ -1413,7 +1429,8 @@ function renderCards(){
       '<div class="cr" style="margin-top:12px">' +
         '<span><span class="t">A/C</span><span class="s ' + (S.ac_on ? 'ok' : '') + '" id="climState">' +
           cabin + '</span></span>' +
-        '<button class="cb' + (S.ac_on ? ' on' : '') + '" data-page="ac" aria-label="Climate detail">' +
+        '<button class="cb' + (S.ac_on ? ' on' : '') + (PENDING.has(S.ac_on ? '741000' : '741001') ? ' busy' : '') +
+          '" id="climPwr" aria-pressed="' + !!S.ac_on + '" aria-label="' + (S.ac_on ? 'Turn A/C off' : 'Turn A/C on') + '">' +
           icon('ac') + '</button></div>' +
       '<div class="cslide" id="climSlide" role="slider" tabindex="0" aria-label="A/C temperature" aria-valuemin="' +
         acRange().mn + '" aria-valuemax="' + acRange().mx + '" aria-valuenow="' + acTarget + '">' +
@@ -1443,6 +1460,8 @@ function renderCards(){
     setClim(acTarget);
   });
   wireClimSlide();
+  $('climPwr').onclick = ev => { ev.stopPropagation(); if(!$('climPwr').classList.contains('busy')) acPower(!S.ac_on, $('climPwr')); };
+  acHint();
 
   // warm any value the poll actually changed; rise once on the first paint only
   let i = 0;
@@ -1460,8 +1479,11 @@ function acRange(){                       // the car's own set-point range and s
   return {mn: c.min != null ? c.min : 16, mx: c.max != null ? c.max : 30, st: c.step || 0.5};
 }
 function sendTemp(){
-  // debounced so stepping does not spam the car
+  // A/C off: nothing is sent, the target waits for the next start (acPower sends it then).
+  // Nobody expects sliding a number to start the car's climate.
   clearTimeout(acTimer);
+  if(!S.ac_on){ acHint(); return; }
+  // debounced so stepping does not spam the car
   acTimer = setTimeout(() => fire(tempOp(acTarget)), 800);
 }
 // Seat rows this car offers, from its own vehicleControlConfig (CAPS.seats). Each row carries its
@@ -1610,7 +1632,7 @@ function renderAc(){
   el.querySelectorAll('[data-xop]').forEach(b => b.onclick = () => fire(b.dataset.xop, b));
   el.querySelector('[data-ac="heat"]').onclick = () => fire(S.ac_on ? '741F00' : '741F01');
   el.querySelector('[data-ac="cool"]').onclick = () => fire(S.ac_on ? '742000' : '742001');
-  el.querySelector('[data-ac="pwr"]').onclick  = () => fire(S.ac_on ? '741000' : '741001');
+  el.querySelector('[data-ac="pwr"]').onclick  = ev => acPower(!S.ac_on, ev.currentTarget);
   el.querySelector('[data-ac="pwr"]').classList.toggle('on', !!S.ac_on);
 }
 
