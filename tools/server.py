@@ -347,7 +347,8 @@ def _control_data(opcode):
 
     Applies to every model: verified on the Jaecoo J5 (051A01R) and, byte for byte against the
     app's own frames, on a Chery Tiggo 7 CSH PHEV (050F01R, #18). The app 1.14.10 encrypts for all
-    cars, and plain frames get '__7404' on both firmwares, so there is no plain path left to keep."""
+    cars, and plain frames get '__7404' on both firmwares. send_control() still falls back to
+    plain if a car rejects the encrypted frame, for any firmware that was never updated."""
     if not opcode.lower().startswith("74"):
         return opcode
     v = _creds().get("vehicle") or {}
@@ -372,7 +373,40 @@ def send_control(opcode, timeout=20):
         return {"code": "-1", "msg": "vehicle_id / device_sn missing from creds.json"}
     try: timeout = int(timeout)
     except Exception: timeout = 20
-    body = {"vehicleId": vid, "deviceSn": dsn, "data": _control_data(str(opcode)), "timeOut": timeout}
+    # Encrypted first; plain only as a fallback for a car whose firmware still wants it. The mode
+    # that worked is remembered per install ("control_plain"), so such a car goes plain first.
+    plain = str(opcode)
+    enc = _control_data(plain)
+    if enc == plain:                                   # init command, or nothing to encrypt with
+        tries = [("plain", plain)]
+    elif c.get("control_plain"):
+        tries = [("plain", plain), ("encrypted", enc)]
+    else:
+        tries = [("encrypted", enc), ("plain", plain)]
+    d = {}
+    for i, (mode, data) in enumerate(tries):
+        d = _send_control_once(vid, dsn, data, timeout)
+        d["mode"] = mode if i == 0 else mode + "-fallback"
+        if not _frame_rejected(plain, d):
+            if len(tries) > 1 and bool(c.get("control_plain")) != (mode == "plain"):
+                c = _creds(); c["control_plain"] = (mode == "plain")
+                try: _save_creds(c)
+                except Exception: pass
+            break
+    return d
+
+def _frame_rejected(op, d):
+    """True only when the T-Box could not read the frame: code 0000 with a bare 2-byte '74RR'
+    reply. Nothing was actuated then, so resending in the other mode cannot double a command.
+    A full verdict (done, 0x44, car moving, ...) means the frame was understood: never retried."""
+    if str(d.get("code")) != "0000" or not str(op).upper().startswith("74"):
+        return False
+    tail = str(d.get("data") or "").split("__")[-1].upper()
+    return tail.startswith("74") and len(tail) == 4
+
+def _send_control_once(vid, dsn, data, timeout):
+    import auth, requests
+    body = {"vehicleId": vid, "deviceSn": dsn, "data": data, "timeOut": timeout}
     def _post(tok):
         ts = auth.now_ms()
         ordered = {k: v for k, v in sorted({**body, "timestamp": ts}.items())}
@@ -2423,7 +2457,7 @@ class H(BaseHTTPRequestHandler):
                 # ok = reached the T-Box and not refused. confirmed = the car itself answered 00;
                 # a 0000 with no verdict (car asleep / weak signal) is ok but NOT confirmed.
                 self._send(200, json.dumps({"ok": reached and done, "confirmed": reached and res == "00",
-                                            "code": d.get("code"),
+                                            "code": d.get("code"), "mode": d.get("mode"),
                                             "msg": d.get("msg"), "result": res,
                                             "reason": reason}).encode(),
                            "application/json")
