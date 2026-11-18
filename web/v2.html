@@ -1406,8 +1406,10 @@ function renderCards(){
   if(!acSynced && sp != null){ acTarget = sp; acSynced = true; }   // start the stepper at the car's own set-point
   const e = S.energy || {};
   const cons = e.consumption != null ? e.consumption + ' kWh/100km' : 'No data yet';
+  const tyreBad = (S.tpms || []).map((w, i) => w.warn ? ['FL', 'FR', 'RL', 'RR'][i] : null).filter(Boolean);
   const tyreSub = S.tyre_indirect === false
     ? (S.tyre_status === 'Normal' ? 'Normal' : 'Check tyres')
+    : tyreBad.length ? 'Check ' + tyreBad.join(', ')          // per-wheel state from the car
     : (S.tyre_status || 'Status only');
   const ct = cabinTemp();
   const cabin = ct != null ? ct + '\u00b0C Cabin Temp' : (S.ac_on ? 'On' : 'Not turned on');
@@ -1885,7 +1887,16 @@ function renderTyres(){
   // reading. With indirect TPMS the car reports ONE status for the whole vehicle, so all four are
   // drawn in the same state and the caption says so — four different colours here would be a lie.
   let wheels, vals = null, cap;
-  if(indirect){
+  const perWheel = indirect && t.some(w => w.state);   // per-wheel state (79-byte frames, Nov 2026 OTA)
+  if(perWheel){
+    wheels = t.map(w => w.state ? (w.warn ? 'bad' : 'ok') : '');
+    vals = t.map(w => w.state || '');
+    const names = ['front-left', 'front-right', 'rear-left', 'rear-right'];
+    const badOnes = t.map((w, i) => w.warn ? names[i] : null).filter(Boolean);
+    cap = badOnes.length
+      ? 'The car flags the <b>' + badOnes.join(', ') + '</b> tyre: ' + t.find(w => w.warn).state.toLowerCase() + '. Check it, then reset TPMS on the head unit.'
+      : 'All four reading <b>normal</b>, as reported by the car for each wheel.';
+  } else if(indirect){
     wheels = ok ? 'ok' : 'bad';
     cap = ok
       ? 'All four reading <b>normal</b>. This car reports one status for the whole vehicle, not four pressures.'
@@ -1913,8 +1924,8 @@ function renderTyres(){
     '</div>' +
     '<div class="note">' + (indirect
       ? 'This car uses indirect TPMS: it infers a soft tyre from wheel speed rather than from pressure ' +
-        'sensors, so it can only report normal or not. Per-wheel pressures appear here on cars with real ' +
-        'sensors.'
+        'sensors, so it reports a state per wheel (normal, insufficient) but never a pressure. Per-wheel ' +
+        'pressures appear here on cars with real sensors.'
       : 'Pressures from the last frame that carried live sensors.') + '</div>';
   mount3d('tyres', 'tyreCar', 'tyres', {
     wheels: Array.isArray(wheels) ? wheels : [wheels, wheels, wheels, wheels],

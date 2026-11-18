@@ -862,6 +862,7 @@ function applyTheme(){ document.documentElement.dataset.theme=theme;
   const m=$('themeColor'); if(m) m.setAttribute('content',THEME_COLOR[theme]||THEME_COLOR.light); }
 const MAP_ID={
   "Range":"Jangkauan","State":"Kondisi","Tyres":"Ban",
+  "Insufficient":"Kurang angin","Incompatible":"Tidak sesuai","Under-inflated":"Kempis",
   "Driven today":"Jarak hari ini","Week":"Minggu","Month":"Bulan",
   "Efficiency":"Efisiensi","Used today":"Terpakai hari ini","Energy left":"Energi tersisa",
   "Insights":"Wawasan","Running cost":"Biaya operasional","Charge forecast":"Perkiraan isi ulang",
@@ -1416,12 +1417,14 @@ function bCharge(){ const c=DATA.charging||{};
       `Biaya menagih kWh terkirim (meteran), bukan yang masuk baterai — cocok dengan struk SPKLU nyata kamu dalam ~1%. Buka kurva pengisian untuk rincian per sesi.`)};
 }
 function bTyres(){ const d=DATA;
+  const lbl=[tn('Front L','Depan Kiri'),tn('Front R','Depan Kanan'),tn('Rear L','Belakang Kiri'),tn('Rear R','Belakang Kanan')];
   if(d.tyre_indirect) return {title:tn('Tyres','Ban'),
     lead:tn('This car has indirect TPMS — it flags a problem but gives no PSI.','Mobil ini pakai TPMS tidak langsung — menandai masalah tapi tak memberi PSI.'),
-    rows:[[tn('Status','Status'), d.tyre_status||'—']],
+    rows:[[tn('Status','Status'), d.tyre_status||'—']]
+      // per-wheel state, when the car sends it (79-byte frames since the Nov 2026 OTA)
+      .concat((d.tpms||[]).some(t=>t.state)?(d.tpms||[]).map((t,i)=>[lbl[i], t.state?T(t.state):'—']):[]),
     note:tn(`Indirect TPMS infers a soft tyre from wheel-speed differences. No live pressure numbers are sent — status only.`,
       `TPMS tidak langsung menebak ban kempes dari selisih putaran roda. Tak ada angka tekanan dikirim — status saja.`)};
-  const lbl=[tn('Front L','Depan Kiri'),tn('Front R','Depan Kanan'),tn('Rear L','Belakang Kiri'),tn('Rear R','Belakang Kanan')];
   return {title:tn('Tyres','Ban'),
     lead: d.tpms_live?tn('Live pressures.','Tekanan langsung.'):tn('Last reported {x}.','Terakhir dilapor {x}.',{x:d.tpms_updated||''}),
     rows:(d.tpms||[]).map((t,i)=>[lbl[i], t.psi!=null?(t.psi+' '+tyreUnit()+(t.temp!=null?' · '+t.temp+'°':'')):'—'])
@@ -1841,7 +1844,8 @@ async function load(live){
   const tb=$('tstatus'); tb.textContent=d.tyre_status||'—'; tb.className='badge '+(bad?'bad':'ok');
   d.tpms.forEach((t,i)=>{ const el=$('t'+i), v=el.querySelector('.v'), u=el.querySelector('.u'), tp=el.querySelector('.t');
     let cls;
-    if(indirect){ cls=bad?'bad':'ok'; v.textContent=bad?'!':'OK'; u.textContent=''; tp.textContent=''; }
+    if(indirect){ const w=t.state?!!t.warn:bad;   // per-wheel state when the car sends it (79-byte frames)
+      cls=w?'bad':'ok'; v.textContent=w?'!':'OK'; u.textContent=''; tp.textContent=w&&t.state?T(t.state):''; }
     else { cls=t.psi==null?'idle':tyreClass(t.psi); v.textContent=t.psi==null?'—':t.psi; u.textContent=tyreUnit(); tp.textContent=t.temp==null?'':t.temp+'°'; }
     el.className='pad '+POS[i]+' '+cls;
     const ty=$('ty'+i); if(ty) ty.setAttribute('class','ty '+cls); });

@@ -84,6 +84,11 @@ _CAR_PHOTO = os.path.join(_DATA, "car-photo.img")
 _CAR_PHOTO_OWNER = os.path.join(_DATA, "car-photo-owner.img")
 _CAR_PHOTO_MAX = 8 * 1024 * 1024                       # same cap as the CarLinko fetch below
 TPMS_POS = ["FL", "FR", "RL", "RR"]
+# Indirect-TPMS wheel state byte -> (label, is_warning), exactly as CarLinko's
+# _applyIndirectTirePressure maps it; any other value the app shows as "--".
+TYRE_STATE = {0: ("Normal", False), 1: ("Insufficient", True), 2: ("Incompatible", True),
+              3: ("Normal", False), 4: ("Under-inflated", True), 5: ("Normal", False),
+              6: ("Normal", False), 7: ("Normal", False)}
 
 def _vehicle_img():
     """The car's own CarLinko render URL, read fresh so a web login or photo refresh takes
@@ -578,11 +583,11 @@ def decode(hexstr):
         # fuel range once the car is known to have a tank.
         d["headline_range_km"] = int.from_bytes(b[70:72], "big")
     d["tyre"] = b[44:52] if len(b) >= 52 else None         # 4 psi + 4 temp, FF=parked
-    # Tyre warning on indirect-TPMS cars (79-byte frames, since the J5's Nov 2026 OTA). 0 on every
-    # frame until 2026-11-18 17:10, when it went to 1 as the CarLinko app and the head unit flagged
-    # the rear-left tyre "Insufficient". Which wheel a value names (index or bit mask) is unknown
-    # from that one sample, so it is surfaced as a whole-car warning plus the raw byte.
-    d["tyre_warn"] = b[77] if len(b) >= 78 else None
+    # Per-wheel tyre state on indirect-TPMS cars (79-byte frames, since the J5's Nov 2026 OTA):
+    # b75 FL, b76 FR, b77 RL, b78 RR. From CarLinko 1.14.10's tirePressure{Lq,Rq,Lh,Rh}Analysis
+    # (list index 73-76, which is blob offset +2) and _applyIndirectTirePressure for the values.
+    # Live-checked 2026-11-18: b77 went 0 -> 1 as the app showed rear-left "Insufficient".
+    d["tyre_state"] = list(b[75:79]) if len(b) >= 79 else None
     return d
 
 _CC = _creds()          # per-model overrides; anything not set falls back to known_cars.CARS
@@ -1424,7 +1429,7 @@ def _summary():
            "trips": [],
            "tpms": [{"pos": p, "psi": None, "temp": None, "valid": False} for p in TPMS_POS],
            "tpms_updated": None, "tpms_age_min": None, "tpms_live": False, "tpms_raw": None,
-           "tyre_status": "Normal", "tyre_indirect": True, "tyre_warn": None,
+           "tyre_status": "Normal", "tyre_indirect": True, "tyre_states": None,
             "km": {"today": None, "week": None, "month": None},
             "charges": {"week": None, "month": None},
             "history": [], "resync_km": "skip"}
@@ -1490,11 +1495,14 @@ def _summary():
                 out["tyre_indirect"] = False
                 out["tyre_status"] = "Check tyres" if any(p < 28 or p > 40 for p in raw_psi) else "Normal"
             break
-    # Indirect TPMS sends no pressure, only the car's own warning byte: read it off the newest frame.
-    warn = dec.get("tyre_warn")
-    out["tyre_warn"] = warn
-    if out["tyre_indirect"] and warn:
-        out["tyre_status"] = "Check tyres"
+    # Indirect TPMS sends no pressure, only the car's own per-wheel state: read it off the newest frame.
+    states = dec.get("tyre_state")
+    out["tyre_states"] = states
+    if out["tyre_indirect"] and states:
+        for w, s in zip(out["tpms"], states):
+            w["state"], w["warn"] = TYRE_STATE.get(s, (None, False))
+        if any(w["warn"] for w in out["tpms"]):
+            out["tyre_status"] = "Check tyres"
 
     # Daily distance comes from trips, each bucketed by the day it STARTED: a drive that crosses
     # midnight (23:45 -> 00:30) stays one trip on the day it began, so "today" only ever shows
