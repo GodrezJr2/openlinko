@@ -511,6 +511,21 @@ alongside it, on the same cloud:
 The protocol notes in [docs/api-map.md](docs/api-map.md) and [docs/control-opcodes.md](docs/control-opcodes.md)
 are a shared reference; corrections from any of these projects are welcome.
 
+## Third-party clients
+
+Clients other people have built against this server's `/api/*` contract. Listed so you can
+find them, not as a recommendation: this project has not audited them, and each is the
+responsibility of whoever publishes it.
+
+- **[Voltmoss](https://voltmoss.web.app)** — a native iOS and Android app (home-screen widgets,
+  charge and trip planning, remote commands) that points at an instance you host; it does nothing
+  without one. **Closed source**, and it **contains ads and analytics** — Google AdMob, Firebase
+  Analytics and Crashlytics (analytics opt-out in its Settings) — and sells **optional in-app
+  purchases** (ad removal, a Voltmoss Plus subscription). By
+  [@anderscheow](https://github.com/anderscheow); support and bug reports go to
+  <ll123mg@gmail.com>, not to this tracker. Parts of it are derived from this project under MIT
+  and credited on its open-source licences screen.
+
 ## Contributing
 Other Jaecoo / CarLinko owners welcome — an [Add my car](https://github.com/GodrezJr2/openlinko/issues/new?template=add-car.yml) report
 is the most useful thing right now: in the dashboard, **Account → Report my car** copies a redacted
