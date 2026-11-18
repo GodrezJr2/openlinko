@@ -345,17 +345,13 @@ def _control_data(opcode):
     2026) rejects plain 74xxyy with a bare '__7404'. Init commands (2301/24/77) stay plain.
     Encryption (reversed from app 1.14.10) lives in carlinko_crypto; it embeds VIN + userId.
 
-    GATED TO THE JAECOO J5 for now: the scheme was verified only on the J5, so other CarLinko
-    models (Chery/Omoda/Jaecoo variants) keep the old plain path until an owner confirms theirs.
-    Widen _is_j5 (or drop the gate) once another model is tested."""
+    Applies to every model: verified on the Jaecoo J5 (051A01R) and, byte for byte against the
+    app's own frames, on a Chery Tiggo 7 CSH PHEV (050F01R, #18). The app 1.14.10 encrypts for all
+    cars, and plain frames get '__7404' on both firmwares, so there is no plain path left to keep."""
     if not opcode.lower().startswith("74"):
         return opcode
     v = _creds().get("vehicle") or {}
     vin = (v.get("vin") or VEHICLE.get("vin") or "")
-    model = (v.get("model") or VEHICLE.get("model") or "")
-    is_j5 = ("j5" in model.lower()) or vin.upper().startswith("MF7HD27B")
-    if not is_j5:
-        return opcode   # unverified model -> old behavior, do not risk a wrong frame
     try:
         import carlinko_crypto
         uid = _user_id()
@@ -2031,6 +2027,9 @@ def control_verdict(op, data):
     res = tail[6:8]
     if res == "00":
         return True, res, None
+    if res == "44":   # app: sub_permission_error. The T-Box keeps its own allow-list of userIds (#18)
+        return False, res, ("No operation permission: this CarLinko account isn't authorised "
+                            "on the car's T-Box")
     reason = AC_REFUSALS.get(res) if op[2:4] == "10" else None
     return False, res, reason or f"Car refused (code 0x{res})"
 
