@@ -1969,7 +1969,11 @@ STREAM_TICK = 1.0     # how often the watcher looks at the newest row
 STREAM_FRESH = 30     # re-send an unchanged summary this often so "Updated x ago" stays honest
 STREAM_PING = 15      # SSE comment so proxies (tailscale serve) keep an idle stream open
 _stream_cv = threading.Condition()
-_stream_state = {"seq": 0, "body": None, "started": False}
+_stream_state = {"seq": 0, "body": None, "started": False,
+                 "clients": 0,         # open /api/stream connections; the watcher sleeps at 0
+                 "raw": object(),      # newest raw frame the cached body was built from
+                 "built": 0.0}         # when that body was built
+_summary_lock = threading.Lock()       # one summary() build at a time; the others reuse it
 
 def _latest_raw():
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=5)
@@ -1979,20 +1983,37 @@ def _latest_raw():
     finally:
         conn.close()
 
-def _stream_publish():
+def _stream_publish(raw):
     body = json.dumps(summary()).encode()
     with _stream_cv:
         _stream_state["seq"] += 1
-        _stream_state["body"] = body
+        _stream_state.update(body=body, raw=raw, built=time.time())
         _stream_cv.notify_all()
+    return body
+
+def _cache_hit(raw):
+    st = _stream_state
+    return st["body"] is not None and raw == st["raw"] and time.time() - st["built"] < STREAM_FRESH
+
+def cached_summary():
+    """Summary body, rebuilt only when the newest frame changed or the cache is STREAM_FRESH old.
+    /api/summary and the stream share it, so a page load after a push costs no extra build."""
+    raw = None if DEMO else _latest_raw()
+    with _stream_cv:
+        if _cache_hit(raw):
+            return _stream_state["body"]
+    with _summary_lock:                 # another request may have built it while we waited
+        with _stream_cv:
+            if _cache_hit(raw):
+                return _stream_state["body"]
+        return _stream_publish(raw)
 
 def _stream_watch():
-    last_raw, last_pub = object(), 0.0
     while True:
         try:
-            raw = None if DEMO else _latest_raw()
-            if raw != last_raw or time.time() - last_pub >= STREAM_FRESH:
-                _stream_publish(); last_raw, last_pub = raw, time.time()
+            with _stream_cv:            # nobody listening: no DB reads, no summary() builds
+                _stream_cv.wait_for(lambda: _stream_state["clients"] > 0)
+            cached_summary()            # publishes (wakes the tabs) only when something changed
         except Exception as e:
             print("stream watcher:", repr(e)[:160])
         time.sleep(STREAM_TICK)
@@ -2045,7 +2066,10 @@ class H(BaseHTTPRequestHandler):
         for k, v in (extra or {}).items():
             self.send_header(k, v)
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass                        # tab closed before the reply landed
 
     def _authed(self):
         return (not _gated()) or valid_session(_cookie_sid(self.headers.get("Cookie")))
@@ -2142,7 +2166,7 @@ class H(BaseHTTPRequestHandler):
                        "application/json")
             return
         if path == "/api/summary":
-            self._send(200, json.dumps(summary()).encode(), "application/json")
+            self._send(200, cached_summary(), "application/json")
             return
         if path == "/api/stream":                      # realtime: a summary each time the car pushes
             _stream_start()
@@ -2151,12 +2175,14 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Accel-Buffering", "no")
             self.end_headers()
+            with _stream_cv:
+                _stream_state["clients"] += 1
+                _stream_cv.notify_all()                # wake the watcher if it was idle
             try:
                 self.wfile.write(b"retry: 3000\n\n")
+                body = cached_summary()
                 with _stream_cv:
-                    seq, body = _stream_state["seq"], _stream_state["body"]
-                if body is None:                       # watcher hasn't published yet
-                    body = json.dumps(summary()).encode()
+                    seq = _stream_state["seq"]
                 while True:
                     if body is not None:
                         self.wfile.write(b"data: " + body + b"\n\n"); self.wfile.flush()
@@ -2169,6 +2195,9 @@ class H(BaseHTTPRequestHandler):
                         self.wfile.write(b": ping\n\n"); self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError, OSError):
                 pass                                   # tab closed
+            finally:
+                with _stream_cv:
+                    _stream_state["clients"] -= 1
             return
         if path == "/api/carreport":                   # "Add my car" issue: redacted model/config/frames
             if not self._authed():
