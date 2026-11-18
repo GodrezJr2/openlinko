@@ -578,6 +578,11 @@ def decode(hexstr):
         # fuel range once the car is known to have a tank.
         d["headline_range_km"] = int.from_bytes(b[70:72], "big")
     d["tyre"] = b[44:52] if len(b) >= 52 else None         # 4 psi + 4 temp, FF=parked
+    # Tyre warning on indirect-TPMS cars (79-byte frames, since the J5's Nov 2026 OTA). 0 on every
+    # frame until 2026-11-18 17:10, when it went to 1 as the CarLinko app and the head unit flagged
+    # the rear-left tyre "Insufficient". Which wheel a value names (index or bit mask) is unknown
+    # from that one sample, so it is surfaced as a whole-car warning plus the raw byte.
+    d["tyre_warn"] = b[77] if len(b) >= 78 else None
     return d
 
 _CC = _creds()          # per-model overrides; anything not set falls back to known_cars.CARS
@@ -1419,7 +1424,7 @@ def _summary():
            "trips": [],
            "tpms": [{"pos": p, "psi": None, "temp": None, "valid": False} for p in TPMS_POS],
            "tpms_updated": None, "tpms_age_min": None, "tpms_live": False, "tpms_raw": None,
-           "tyre_status": "Normal", "tyre_indirect": True,
+           "tyre_status": "Normal", "tyre_indirect": True, "tyre_warn": None,
             "km": {"today": None, "week": None, "month": None},
             "charges": {"week": None, "month": None},
             "history": [], "resync_km": "skip"}
@@ -1485,6 +1490,11 @@ def _summary():
                 out["tyre_indirect"] = False
                 out["tyre_status"] = "Check tyres" if any(p < 28 or p > 40 for p in raw_psi) else "Normal"
             break
+    # Indirect TPMS sends no pressure, only the car's own warning byte: read it off the newest frame.
+    warn = dec.get("tyre_warn")
+    out["tyre_warn"] = warn
+    if out["tyre_indirect"] and warn:
+        out["tyre_status"] = "Check tyres"
 
     # Daily distance comes from trips, each bucketed by the day it STARTED: a drive that crosses
     # midnight (23:45 -> 00:30) stays one trip on the day it began, so "today" only ever shows

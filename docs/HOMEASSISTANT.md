@@ -115,6 +115,7 @@ service it registers).
 | `energy.consumption` | car's avg kWh/100km |
 | `energy.today_kwh` | energy used today (kWh) |
 | `tyre_status` | `Normal` / `Check tyres` (indirect TPMS, no PSI) |
+| `tyre_warn` | raw tyre-warning byte from the car (0 = fine, `null` on older 73-byte frames) |
 | `insights.rp_per_km`, `insights.real_range` | running cost / real-world range |
 
 ## MQTT (not packaged yet)

@@ -105,7 +105,10 @@ invalid: pressure byte == FF, temp byte == FF    (…but the bytes are always FF
 
 So the dashboard shows tyre **status** (Normal / Check tyres), **not** PSI. The decoder + formula
 are kept so that a car which *does* report real values would display them, but on this vehicle
-the only honest output is status. An abnormal tyre would surface via CarLinko alerts, not telemetry.
+the only honest output is status. Since the Nov 2026 OTA the blob is 79 bytes and **byte 77 is the
+car's own tyre warning** (0 = fine). It went 0 → 1 on 2026-11-18 17:10 as the CarLinko app and the
+head unit flagged the rear-left tyre "Insufficient", so the dashboard reads it: non-zero → "Check
+tyres". Which wheel a value names (index or bit mask) needs another sample.
 
 ## This server's own contract — `/api/summary` versioning
 
@@ -209,6 +212,7 @@ Other commands report `Car refused (code 0x..)` until their branches are mapped.
 | `windshield_heat` / `wheel_heat` / `air_purifier` | bytes 64 / 65 / 66 | 0 = off, 1 = on — from #15, **untested live** (0 on every J5 frame) |
 | `defrost_front` | byte 42 | 0 = off |
 | tyre block (4 pressure + 4 temp) | bytes 44–51 | `FF` on indirect TPMS (J5); real values on direct TPMS. temp = `raw × 0.65 − 40` |
+| `tyre_warn` | byte 77 (79-byte frames only) | indirect-TPMS tyre warning, 0 = fine. `1` while the app showed rear-left "Insufficient" (J5, 2026-11-18); wheel mapping unconfirmed |
 | `fuel_l_100` **(PHEV)** | byte 53 (×0.1) | 0.8 L/100 km — `0` on every BEV frame |
 | `consumption` | bytes 54–55 | signed 12-bit: `mode = b54 >> 4`, `mag = (b54 & 0x0F) << 8 \| b55`, value = `mag × 0.1 − (100 if mode == 1)`. On a BEV b54 = 0, so it is `b55 × 0.1` (12.4 kWh/100 km, matches the J5 dash). Decoded in #15; it reproduces both Tiggo 8 PHEV dash readings exactly |
 | `charge_mode` | byte 56 | connector: `0`=none, `1`=AC, `16`=DC fast. [#5](https://github.com/GodrezJr2/openlinko/issues/5) |
