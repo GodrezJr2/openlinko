@@ -62,6 +62,36 @@ Notes:
   ChargingManagement, ScheduledCharging, ScheduledTravel, Search/find-car…).
 - Control results / live status come back over the **WebSocket**, not the HTTP response.
 
+## Car position — `/maps/deviceLocate`
+
+`POST {api_base}/maps/deviceLocate`, signed like any other call, body
+`{"sn": "<DEVICE_SN>", "showAddress": 1}`. Found in the app as `getVehiclePositioningData`. Reply:
+`{"code":"0000","data":{"lat":..,"lng":..,"address":..}}`. Used by the opt-in location feature,
+see [LOCATION.md](LOCATION.md).
+
+- It is CarLinko's **cached** last fix: it doesn't wake the car. The car uploads a new position
+  about **every 30 s** while driving (Tiggo 7 CSH, Malaysia: reads 25–30 s apart got the same fix back
+  12–15% of the time). That's why `location_interval` has a 30 s floor.
+- `showAddress` must be the integer `0` or `1`. The flag reads **inverted**: `1` gives
+  `address: null`, `0` gives the reverse-geocoded address (observed by
+  [@anderscheow](https://github.com/anderscheow) and confirmed on a second Tiggo 7, 2026-11-19).
+  OpenLinko sends `1` and doesn't use the address.
+- The telemetry blob (WS `action:6`) carries **no position**. Searched for every common integer and
+  float encoding of the coordinates; none matched. This call is the only source.
+
+| Code | Meaning | What the logger does |
+|---|---|---|
+| `0000` | Fix in `data` | Jump check, then stores it |
+| `50052` `查询定位失败` | No position this time. Either the car has none in the cloud (J5, Indonesia) or a one-off gap mid-drive on a car that has one (Tiggo 7: about 1 in 100–150 reads, the next read fine, on two different accounts, so not a rate limit) | Stops only if the car never had a fix and 3 reads in a row say it; otherwise logs and carries on |
+| `50008` `车辆不在线` | Vehicle not online (asleep, no network) | Logs the code, tries again later |
+
+- **The longitude can arrive a digit short.** On a Tiggo 7 CSH in Malaysia (region `sea`) the cloud
+  sent `lng` 10.177 for a car at E 101.77 (the real value ÷ 10), still with `0000`, and geocoded it
+  to Cameroon ([#23](https://github.com/GodrezJr2/openlinko/issues/23), @anderscheow). Seen on one
+  account; a second Tiggo 7 in the same region has had 3-digit longitudes on every fix. The logger
+  repairs it in any region with its jump check (a > 500 km jump whose `lng × 10` fits), see
+  [LOCATION.md → Longitude one digit short](LOCATION.md#longitude-one-digit-short).
+
 ## Realtime WebSocket protocol (`:4002`)
 
 ```
@@ -183,6 +213,29 @@ byte, `reason` a human text where one is known. For A/C (`CMD 0x10`) the codes c
 
 Other commands report `Car refused (code 0x..)` until their branches are mapped. Seen live
 2026-11-03: `741001` → `…__74100196` (key inside, owner at the car), `740100` → `…__74010000`.
+
+### Car position — `/api/location`, `/api/route` (opt-in)
+
+Both read the `positions` table, which the logger fills only when `"location": true`. They are never
+on in demo mode and never call CarLinko themselves. Both need a session when the dashboard is gated
+(else `401`). No capability ID advertises them: clients read `enabled`.
+
+`GET /api/location`: the newest fix, one indexed query, cheap enough to poll every 5 s per tab.
+
+```json
+{"enabled": true, "lat": 3.1579, "lng": 101.7116, "ts": 1795123456, "age_s": 42, "moving": false, "since": 1794900000}
+```
+
+- `lat`, `lng`, `ts`, `age_s`, `moving` are `null` until the first fix. With location off,
+  `enabled` is `false` and the rest are `null`.
+- `since` is the oldest stored fix, so a UI only offers routes for outings that can have one.
+
+`GET /api/route?from=<ts>&to=<ts>`: the fixes for one outing, `{"points": [[lat, lng, ts], ...]}`.
+
+- The range is padded by 300 s on each side, to pick up the fix read as the car stopped.
+- At most 3 days and 20000 points. A reversed or oversized range, or location off, gives
+  `{"points": []}`. A non-integer `from`/`to` gives `400`.
+- On demand only: nothing serves the whole history at once.
 
 ---
 

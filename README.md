@@ -118,6 +118,9 @@ and one screen per part of it. The classic interface is still at `/index.html` (
 - **Head unit add-on** — Climate Gesture: two-finger fan and temperature control on the J5 head
   unit, installed from the dashboard over the local network. See [Head unit add-on](#head-unit-add-on-climate-gesture).
 - **BEV and PHEV** — fuel level, fuel range and fuel consumption on PHEVs.
+- **Find my car (opt-in)** — where the car is parked, a Navigate button for your phone's maps app,
+  and the route of each trip, from CarLinko's cached position. Off by default; works where the cloud
+  has a position (Tiggo 7 CSH, Malaysia; not the J5 in Indonesia). See [docs/LOCATION.md](docs/LOCATION.md).
 - **Home Assistant** — read it over REST sensors with battery-low / charge-done notifications
   ([docs/HOMEASSISTANT.md](docs/HOMEASSISTANT.md)). For a native integration see [Related projects](#related-projects).
 - **Extras (optional, need a Google Maps key)** — long-trip charge planner and SPKLU charger map.
@@ -314,7 +317,7 @@ generates correct ones for your user and paths, so you shouldn't need to.
 | `chemistry` | | `lfp` (default) or `nmc` — picks the battery-care advice |
 | `full_charge_days` | | how often to recommend a 100% charge. Default `7` for LFP, `90` for NMC |
 | `gmaps_key` | | Google Maps key — enables trip planner + SPKLU map (else OSM fallback) |
-| `location` | | `true` turns on **Find my car** and per-trip routes (default `false`). The logger reads the car's position from CarLinko (`/maps/deviceLocate`, a cached fix that doesn't wake the car) and stores it in `carlinko.db`. Not every car has one: if CarLinko answers `50052` three times in a row and has never given this car a fix, the feature switches itself off until the logger restarts (a car that has had a fix just gets the odd `50052` gap and carries on). Each fix is checked against the last one: a jump farther than the car could have driven (200 km/h, and no more than the odometer moved) is dropped, and a longitude the cloud sends one digit short (101.7 as 10.17) is put right. **Stores where your car has been** — see Privacy below. Restart the logger after changing it |
+| `location` | | `true` turns on **Find my car** and per-trip routes (default `false`). The logger reads the car's position from CarLinko (`/maps/deviceLocate`, a cached fix that doesn't wake the car) and stores it in `carlinko.db`. Not every car has one: if CarLinko answers `50052` three times in a row and has never given this car a fix, the feature switches itself off until the logger restarts (a car that has had a fix just gets the odd `50052` gap and carries on). Each fix is checked against the last one: a jump farther than the car could have driven (200 km/h, and no more than the odometer moved) is dropped, and a longitude the cloud sends one digit short (101.7 as 10.17) is put right. **Stores where your car has been** — see Privacy below. Restart the logger after changing it. Full guide: [docs/LOCATION.md](docs/LOCATION.md) |
 | `location_interval` | | seconds between fixes while driving, default `30`. Min `30`: the car only uploads a new position about every 30 s, so a lower value is raised to `30` (reading faster just repeats the same fix and loads CarLinko's API). `40`–`45` gets a fresh fix almost every time |
 | `location_parked_interval` | | seconds between fixes while parked, default `0` = none (one fix is still read when the car stops and at start-up). Min `300` when set (a lower value is raised to `300`) |
 | `location_keep_days` | | days of positions to keep, default `90`; `0` = forever |
@@ -505,7 +508,7 @@ host one service holding everyone's credentials. Different models can override
   installers (`install.sh`, `termux-setup.sh`, `start.bat` at the root) and deploy scripts
 - `web/` — the PWA (`v2.html` default, `index.html` classic, vendored `leaflet.*` / `three.module.min.js`)
 - `headunit/` — the Climate Gesture head-unit add-on (Java source + built APK)
-- `docs/` — API map, control opcodes, CI/CD, Home Assistant notes
+- `docs/` — API map, control opcodes, CI/CD, Home Assistant notes, car location
 - `research/` — the reverse-engineering scripts behind those docs; not needed to run anything ([README](research/README.md))
 - `PRODUCT.md`, `DESIGN.md` — product + visual design notes
 

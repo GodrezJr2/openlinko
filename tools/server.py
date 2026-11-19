@@ -2112,7 +2112,7 @@ def control_verdict(op, data):
 # one poller), every dashboard just reads. Off unless "location": true in creds.json; never in demo.
 ROUTE_PAD = 300           # s either side of an outing: picks up the fix read as it stopped
 ROUTE_MAX_SPAN = 3 * 86400
-ROUTE_MAX_POINTS = 20000  # 3 days of non-stop driving at the 10 s minimum interval is ~26k; plenty
+ROUTE_MAX_POINTS = 20000  # 3 days of non-stop driving at the 30 s minimum interval is ~8.6k; plenty
 TS_MAX = 2 ** 40          # sanity bound for ?from/?to (SQLite INTEGER would overflow on silly input)
 
 def _truthy(v):
