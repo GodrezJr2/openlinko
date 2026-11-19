@@ -456,7 +456,7 @@ def locate():
     try:
         r = requests.post(auth.api_base() + "/maps/deviceLocate",
                           headers=auth.headers_for({}, token=tok),
-                          json={"sn": sn, "showAddress": 1}, timeout=20).json()   # showAddress must be int 1
+                          json={"sn": sn, "showAddress": 1}, timeout=20).json()   # int; inverted: 1 = no address (all we need), 0 = address
     except Exception as e:                            # network error, timeout, non-JSON reply
         print("location: request failed:", repr(e)[:120])
         return None
