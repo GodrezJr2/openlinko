@@ -380,7 +380,10 @@ def stream_loop(conn):
 # one at start-up, and optionally one every LOC_PARKED s while parked (0 = off, the default). Runs as a
 # thread in this process: it reuses the logger's token.txt, never logs in itself, and goes quiet while
 # the login guard holds. Some cars/regions have no position in the cloud and answer 50052
-# (查询定位失败, seen on a J5 in Indonesia); the thread then switches itself off until the next restart.
+# (查询定位失败, seen on a J5 in Indonesia). Cars that do have a position (a Tiggo 7 in Malaysia) also
+# answer 50052 now and then, mid-drive, between good fixes. So 50052 only switches the thread off (until
+# the next restart) when this car has never produced a fix (no row in positions) and LOC_GIVE_UP reads in
+# a row said 50052. Once a fix exists, 50052 is "no fix this time" and the normal schedule carries on.
 # Settings are read at start-up: restart the logger after changing them.
 def _loc_flag(v):
     if isinstance(v, bool): return v
@@ -409,6 +412,7 @@ LOC_KEEP   = 90 if LOC_KEEP < 0 else LOC_KEEP     # a negative typo must not mea
 LOC_TICK   = 5
 LOC_RETRY  = 60           # a failed start-up/stop fix is retried this often until one lands
 LOC_UNSUPPORTED = ("50052",)
+LOC_GIVE_UP = 3           # 50052s in a row, with no fix ever stored, before the thread switches off
 LOC_STALE_TOKEN = ("9997", "40001", "40003", "401", "1001", "1002")
 LOC_SCHEMA = """
 CREATE TABLE IF NOT EXISTS positions (   -- only created when location is on
@@ -512,6 +516,9 @@ def location_loop():
     last_fix, last_purge, was_moving = 0.0, time.time(), False
     want_parked = True        # a parked fix is owed (start-up, or the car just stopped) until one lands
     last_err, last_err_t = None, 0.0
+    # A car that has ever produced a fix supports location; its 50052s are gaps, not "unsupported".
+    has_fix = conn.execute("SELECT 1 FROM positions LIMIT 1").fetchone() is not None
+    misses, last_miss_t = 0, 0.0      # 50052s in a row; when the last "no fix" line was printed
     while True:
         now = time.time()
         try:
@@ -526,11 +533,18 @@ def location_loop():
                 last_fix = now                        # first, so a failure can't turn into a 5 s retry loop
                 p = locate()
                 if p == "unsupported":
-                    print("location: CarLinko has no position for this car (50052); "
-                          "location capture is off until the logger restarts")
-                    conn.close()
-                    return
+                    misses += 1
+                    if not has_fix and misses >= LOC_GIVE_UP:
+                        print("location: CarLinko has no position for this car (50052); "
+                              "location capture is off until the logger restarts")
+                        conn.close()
+                        return
+                    if has_fix and now - last_miss_t >= 600:   # one line per gap, not one per read
+                        print("location: no fix from CarLinko this time (50052); still trying")
+                        last_miss_t = now
+                    p = None
                 if p:
+                    misses, has_fix = 0, True
                     conn.execute("INSERT OR REPLACE INTO positions(ts, lat, lng, moving) VALUES (?,?,?,?)",
                                  (int(now), p[0], p[1], 1 if moving else 0))
                     conn.commit()
