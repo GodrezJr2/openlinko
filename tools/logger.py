@@ -384,6 +384,8 @@ def stream_loop(conn):
 # answer 50052 now and then, mid-drive, between good fixes. So 50052 only switches the thread off (until
 # the next restart) when this car has never produced a fix (no row in positions) and LOC_GIVE_UP reads in
 # a row said 50052. Once a fix exists, 50052 is "no fix this time" and the normal schedule carries on.
+# Each fix is also checked against the last good one (_loc_gate): a jump farther than the car could have
+# driven is dropped, unless the same new place comes back LOC_RECOVER times in a row.
 # Settings are read at start-up: restart the logger after changing them.
 def _loc_flag(v):
     if isinstance(v, bool): return v
@@ -413,6 +415,10 @@ LOC_TICK   = 5
 LOC_RETRY  = 60           # a failed start-up/stop fix is retried this often until one lands
 LOC_UNSUPPORTED = ("50052",)
 LOC_GIVE_UP = 3           # 50052s in a row, with no fix ever stored, before the thread switches off
+LOC_VMAX_KMH = 200        # jump check: no car covers more ground than this between two fixes...
+LOC_SLACK_KM = 2.0        # ...plus this much for GPS jitter and the cloud cache's age
+LOC_REPAIR_KM = 500       # lng x 10 is only considered for a jump this big (never for a real drive near lng 0)
+LOC_RECOVER = 3           # this many rejected fixes in a row that agree with each other win (the car did move)
 LOC_STALE_TOKEN = ("9997", "40001", "40003", "401", "1001", "1002")
 LOC_SCHEMA = """
 CREATE TABLE IF NOT EXISTS positions (   -- only created when location is on
@@ -487,6 +493,55 @@ def _loc_moving(conn):
     moved = bool(old and old[0] is not None and odo is not None and odo > old[0])
     return bool((spd or 0) > 0 or moved)
 
+def _loc_km(a, b):
+    """Great-circle (haversine) distance in km between two (lat, lng) points."""
+    p1, p2 = math.radians(a[0]), math.radians(b[0])
+    h = (math.sin((p2 - p1) / 2) ** 2
+         + math.cos(p1) * math.cos(p2) * math.sin(math.radians(b[1] - a[1]) / 2) ** 2)
+    return 2 * 6371.0088 * math.asin(min(1.0, math.sqrt(h)))
+
+def _loc_frame(conn, ts):
+    """(odometer km, speed km/h) from the newest frame at most 3 min before ts, else (None, None)."""
+    row = conn.execute("SELECT ts, odo_guess, raw FROM telemetry WHERE ts <= ? ORDER BY ts DESC LIMIT 1",
+                       (int(ts),)).fetchone()
+    if not row or ts - row[0] >= 180:
+        return None, None
+    try:
+        spd = decode(row[2]).get("speed") if row[2] else None
+    except (ValueError, TypeError):
+        spd = None
+    return row[1], spd
+
+def _loc_allow_km(ref, ts, odo):
+    """How far the car can be from ref = (ts, lat, lng, odo) at time ts: 200 km/h for the time between
+    them, but never more than the odometer says it drove when both readings exist (a car parked for a
+    week may be 3 km off, not 33,000), plus slack. The 50052 gaps just add time, so they can't cause a
+    good fix to be dropped."""
+    allow = LOC_VMAX_KMH * max(0.0, ts - ref[0]) / 3600
+    if odo is not None and ref[3] is not None:
+        allow = min(allow, max(0, odo - ref[3]) + 1)  # +1: the odometer counts whole km, it lags up to 1
+    return allow + LOC_SLACK_KM
+
+def _loc_gate(ref, p, ts, odo):
+    """Judge fix p against the last good fix ref. Returns ("ok", p), ("repaired", p') or ("drop", None).
+    The cloud has been seen sending a longitude one digit short (E 101.77 as 10.177, a Tiggo 7 in
+    Malaysia), so a fix is also tried with lng x 10, and that reading is used when it fits. That works
+    in any region. The x 10 reading also wins when it is 10 times closer than the raw one, so a long
+    logger outage (no odometer, a huge time allowance) can't let the short value through. Only jumps over
+    LOC_REPAIR_KM qualify, so a real drive near lng 0 (London: -0.12 -> -0.012) is never "repaired"."""
+    if ref is None:
+        return "ok", p
+    allow = _loc_allow_km(ref, ts, odo)
+    d = _loc_km(ref[1:3], p)
+    if abs(p[1] * 10) <= 180:
+        q = (p[0], p[1] * 10)
+        dq = _loc_km(ref[1:3], q)
+        if d > LOC_REPAIR_KM and dq <= allow and dq * 10 < d:
+            return "repaired", q
+    if d <= allow:
+        return "ok", p
+    return "drop", None
+
 def _loc_purge(conn):
     """Retention. Also run at start-up with location OFF, so an old history still ages out."""
     if LOC_KEEP > 0 and conn.execute(
@@ -518,7 +573,10 @@ def location_loop():
     last_err, last_err_t = None, 0.0
     # A car that has ever produced a fix supports location; its 50052s are gaps, not "unsupported".
     has_fix = conn.execute("SELECT 1 FROM positions LIMIT 1").fetchone() is not None
-    misses, last_miss_t = 0, 0.0      # 50052s in a row; when the last "no fix" line was printed
+    misses, calls = 0, 0              # 50052s in a row; locate() calls since start (for the 50052 log)
+    row = conn.execute("SELECT ts, lat, lng FROM positions ORDER BY ts DESC LIMIT 1").fetchone()
+    ref = (row[0], row[1], row[2], _loc_frame(conn, row[0])[0]) if row else None   # last good fix + odometer
+    rejected, said = [], set()        # fixes that failed the jump check, in a row; one-off log lines
     while True:
         now = time.time()
         try:
@@ -532,6 +590,7 @@ def location_loop():
             if due:
                 last_fix = now                        # first, so a failure can't turn into a 5 s retry loop
                 p = locate()
+                calls += 1
                 if p == "unsupported":
                     misses += 1
                     if not has_fix and misses >= LOC_GIVE_UP:
@@ -539,12 +598,36 @@ def location_loop():
                               "location capture is off until the logger restarts")
                         conn.close()
                         return
-                    if has_fix and now - last_miss_t >= 600:   # one line per gap, not one per read
-                        print("location: no fix from CarLinko this time (50052); still trying")
-                        last_miss_t = now
+                    if has_fix:                       # rare (~1 in 100+ reads); logged in full to spot a pattern
+                        spd = _loc_frame(conn, now)[1]
+                        age = f"{int(now - ref[0])}s" if ref else "?"
+                        print(f"location: no fix this time (50052): call {calls} since start, "
+                              f"{'?' if spd is None else spd} km/h, last fix {age} ago; still trying")
                     p = None
                 if p:
-                    misses, has_fix = 0, True
+                    odo = _loc_frame(conn, now)[0]
+                    verdict, q = _loc_gate(ref, p, now, odo)
+                    if verdict == "repaired" and "repaired" not in said:
+                        print("location: CarLinko sent a longitude one digit short; using it x 10 "
+                              "(it fits the last fix)")
+                        said.add("repaired")
+                    if verdict == "drop":
+                        cand = (now, p[0], p[1], odo)
+                        if rejected and _loc_gate(rejected[-1], p, now, odo)[0] != "ok":
+                            rejected = []             # the rejects don't agree with each other: start over
+                        rejected.append(cand)
+                        if len(rejected) < LOC_RECOVER:
+                            print(f"location: dropped a fix {_loc_km(ref[1:3], p):.0f} km from the last one "
+                                  f"(allowed {_loc_allow_km(ref, now, odo):.1f} km)")
+                            p = None
+                        else:
+                            print(f"location: {LOC_RECOVER} fixes in a row agree on a new place; "
+                                  "taking it (the car moved while no fix was read)")
+                    else:
+                        p = q
+                if p:
+                    misses, has_fix, rejected = 0, True, []
+                    ref = (now, p[0], p[1], _loc_frame(conn, now)[0])
                     conn.execute("INSERT OR REPLACE INTO positions(ts, lat, lng, moving) VALUES (?,?,?,?)",
                                  (int(now), p[0], p[1], 1 if moving else 0))
                     conn.commit()
