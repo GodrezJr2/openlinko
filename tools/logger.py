@@ -403,12 +403,23 @@ def _loc_int(key, default, lo, hi):
     except (TypeError, ValueError, OverflowError):
         print(f"location: ignoring {key}={v!r} (not a number), using {default}")
         return default
-    return min(max(n, lo), hi)
+    m = min(max(n, lo), hi)
+    if m != n and LOC_ON:
+        print(f"location: {key}={n} is {'below the minimum' if n < lo else 'above the maximum'}, using {m}")
+    return m
 
+# The car uploads its position to the cloud about every 30 s (measured on a Tiggo 7: reads 25-30 s apart
+# often got the same cached fix back), so reading faster only repeats it and loads CarLinko's API.
+# A lower location_interval is raised to LOC_MIN_EVERY; parked reads have their own 5-minute floor.
+LOC_MIN_EVERY = 30
+LOC_MIN_PARKED = 300
 LOC_ON     = _loc_flag(_C.get("location"))
-LOC_EVERY  = _loc_int("location_interval", 30, 10, 86400)
+LOC_EVERY  = _loc_int("location_interval", 30, LOC_MIN_EVERY, 86400)
 LOC_PARKED = _loc_int("location_parked_interval", 0, 0, 7 * 86400)
-LOC_PARKED = max(300, LOC_PARKED) if LOC_PARKED else 0
+if 0 < LOC_PARKED < LOC_MIN_PARKED:
+    if LOC_ON:
+        print(f"location: location_parked_interval={LOC_PARKED} is below the minimum, using {LOC_MIN_PARKED}")
+    LOC_PARKED = LOC_MIN_PARKED
 LOC_KEEP   = _loc_int("location_keep_days", 90, -1, 36500)         # 0 = keep forever
 LOC_KEEP   = 90 if LOC_KEEP < 0 else LOC_KEEP     # a negative typo must not mean "forever"
 LOC_TICK   = 5
