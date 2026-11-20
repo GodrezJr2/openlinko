@@ -39,7 +39,7 @@ location: on (every 40s while moving, only on stop while parked, keep 90 days)
 | Setting | Default | Meaning |
 |---|---|---|
 | `location` | `false` | `true` turns the feature on. |
-| `location_interval` | `30` | Seconds between fixes while driving. **Minimum `30`**: a lower value is raised to 30 (see [How often](#how-often)). `40`–`45` gets a fresh fix almost every time. |
+| `location_interval` | `40` | Seconds between fixes while driving. **Minimum `30`**: a lower value is raised to 30 (see [How often](#how-often)). The default gets a fresh fix almost every time. |
 | `location_parked_interval` | `0` | Seconds between fixes while parked. `0` = none: one fix is still read when the car stops and at start-up. Minimum `300` when set. |
 | `location_keep_days` | `90` | Days of positions to keep. `0` = forever. |
 
@@ -84,7 +84,8 @@ A start-up or stop fix that fails is retried every 60 s until one lands.
 The car uploads its position to the cloud about **every 30 seconds**. On a Tiggo 7, reads 25–30 s
 apart got the same cached fix back 12–15% of the time while driving. Reading faster than the car
 uploads only repeats the last fix and adds load on CarLinko's API, so `location_interval` can't go
-below 30. A value a little above the upload rate (40–45 s) gets a new fix on almost every read.
+below 30. A value a little above the upload rate gets a new fix on almost every read, so the default
+is 40 s: on a Tiggo 7 drive at 40 s, none of 29 reads while moving repeated the previous fix.
 
 ### `50052` — no position
 `50052 查询定位失败` ("location query failed") has two meanings:

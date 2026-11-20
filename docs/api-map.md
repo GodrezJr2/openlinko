@@ -71,7 +71,8 @@ see [LOCATION.md](LOCATION.md).
 
 - It is CarLinko's **cached** last fix: it doesn't wake the car. The car uploads a new position
   about **every 30 s** while driving (Tiggo 7 CSH, Malaysia: reads 25–30 s apart got the same fix back
-  12–15% of the time). That's why `location_interval` has a 30 s floor.
+  12–15% of the time; at 40 s, none of 29). That's why `location_interval` has a 30 s floor and
+  defaults to 40 s.
 - `showAddress` must be the integer `0` or `1`. The flag reads **inverted**: `1` gives
   `address: null`, `0` gives the reverse-geocoded address (observed by
   [@anderscheow](https://github.com/anderscheow) and confirmed on a second Tiggo 7, 2026-11-19).

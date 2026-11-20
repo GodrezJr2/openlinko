@@ -411,10 +411,12 @@ def _loc_int(key, default, lo, hi):
 # The car uploads its position to the cloud about every 30 s (measured on a Tiggo 7: reads 25-30 s apart
 # often got the same cached fix back), so reading faster only repeats it and loads CarLinko's API.
 # A lower location_interval is raised to LOC_MIN_EVERY; parked reads have their own 5-minute floor.
+# The default sits a little above the upload rate, so almost every read is a new fix (a Tiggo 7 drive
+# at 40 s: 0 repeats in 29 moving reads, against 12-15% at 25-30 s) with a quarter fewer calls than 30.
 LOC_MIN_EVERY = 30
 LOC_MIN_PARKED = 300
 LOC_ON     = _loc_flag(_C.get("location"))
-LOC_EVERY  = _loc_int("location_interval", 30, LOC_MIN_EVERY, 86400)
+LOC_EVERY  = _loc_int("location_interval", 40, LOC_MIN_EVERY, 86400)
 LOC_PARKED = _loc_int("location_parked_interval", 0, 0, 7 * 86400)
 if 0 < LOC_PARKED < LOC_MIN_PARKED:
     if LOC_ON:
