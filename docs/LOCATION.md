@@ -55,7 +55,15 @@ Settings are read when the logger starts. Restart it after a change.
 - **Share location** uses the system share sheet where there is one (coordinates plus a Google Maps
   link). Otherwise the button reads **Copy location** and copies the coordinates.
 
-Map tiles come from OpenStreetMap.
+**Map tiles** come from OpenStreetMap's tile server, loaded by your browser, under the
+[OSMF Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/). The map always shows
+the credit "© OpenStreetMap contributors" (linked to the
+[copyright page](https://www.openstreetmap.org/copyright); the data is under the ODbL) and a
+*Report a map issue* link. The policy requires a Referer on tile requests from web pages, so the
+tiles set `referrerPolicy="strict-origin-when-cross-origin"`: only the dashboard's origin is sent,
+even behind a reverse proxy that sets a stricter page-wide `Referrer-Policy`. If you run OpenLinko
+behind a proxy, don't put a tile cache in front of `tile.openstreetmap.org` (the policy doesn't
+recommend one), and never strip the Referer.
 
 ## How it works
 The logger is the **only** thing that calls CarLinko for the position. It runs as a thread in the
