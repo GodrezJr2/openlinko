@@ -2479,6 +2479,11 @@ async function locRoute(o){
   $('locBack').hidden = false;
   $('pgLoc').scrollTo({top: 0, behavior: 'smooth'});
 }
+// OSMF Tile Usage Policy (operations.osmfoundation.org/policies/tiles): browsers load the tiles
+// directly and send the page's origin as Referer; the credit stays visible on the map, linked to
+// the copyright page (data (c) OpenStreetMap contributors, ODbL), with the recommended issue link.
+const OSM_CREDIT = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+  + ' | <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Report a map issue</a>';
 async function renderLoc(){
   const el = $('pgLocBody'), d = LOCV.d || {}, outs = locOutings();
   LOCV.route = null;
@@ -2505,7 +2510,7 @@ async function renderLoc(){
   if(LOCV.map){ try{ LOCV.map.remove(); }catch(e){} }
   LOCV.map = L.map('locMap', {zoomControl: true, attributionControl: true, scrollWheelZoom: false});
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(LOCV.map);
+    {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin', attribution: OSM_CREDIT}).addTo(LOCV.map);
   LOCV.layer = L.layerGroup().addTo(LOCV.map);
   if(locOn()) locShowCar(false); else LOCV.map.setView([0, 110], 3, {animate: false});
   setTimeout(() => { try{ LOCV.map.invalidateSize(); }catch(e){} }, 360);   // after the page slide-in
