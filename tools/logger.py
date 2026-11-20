@@ -386,6 +386,12 @@ def stream_loop(conn):
 # a row said 50052. Once a fix exists, 50052 is "no fix this time" and the normal schedule carries on.
 # Each fix is also checked against the last good one (_loc_gate): a jump farther than the car could have
 # driven is dropped, unless the same new place comes back LOC_RECOVER times in a row.
+# The cloud sometimes sends a longitude one digit short (E 101.77 as 10.177, which is in Africa). After
+# the first fix the jump check repairs that. The very first fix has nothing to be judged against, so:
+# a short longitude is the real one / 10 and always within +-18; a first fix outside +-18 is kept at once,
+# one inside is read again LOC_CONFIRM s later, and of two readings that differ by x 10 the larger is kept
+# (the cloud loses a digit, it never adds one). If a short value is stored anyway, the next reading that is
+# exactly x 10 of it corrects it (_loc_repair_stored). See docs/LOCATION.md "How a position is checked".
 # Settings are read at start-up: restart the logger after changing them.
 def _loc_flag(v):
     if isinstance(v, bool): return v
@@ -432,6 +438,10 @@ LOC_VMAX_KMH = 200        # jump check: no car covers more ground than this betw
 LOC_SLACK_KM = 2.0        # ...plus this much for GPS jitter and the cloud cache's age
 LOC_REPAIR_KM = 500       # lng x 10 is only considered for a jump this big (never for a real drive near lng 0)
 LOC_RECOVER = 3           # this many rejected fixes in a row that agree with each other win (the car did move)
+LOC_SHORT_MAX = 18.0      # a longitude sent a digit short is the real one / 10, so always within +-18
+LOC_CONFIRM = 45          # s until the read that checks a first fix inside +-18 (past the ~30 s cloud refresh)
+LOC_CONFIRM_TRIES = 3     # empty check reads (50052 / no fix) before the held first fix is kept as it is
+LOC_REPAIR_ROWS = 500     # most stored rows one digit-short correction may touch
 LOC_STALE_TOKEN = ("9997", "40001", "40003", "401", "1001", "1002")
 LOC_SCHEMA = """
 CREATE TABLE IF NOT EXISTS positions (   -- only created when location is on
@@ -490,11 +500,12 @@ def locate():
         print(f"location: code {code} {str(r.get('msg'))[:80]}")
     return None
 
-def _loc_moving(conn):
+def _loc_moving(conn, now=None):
     """True when the newest frame (< 3 min old) shows speed > 0 or the odometer advanced in the
     last 3 min. Unlocked-but-parked is not motion here (unlike adaptive_loop's "awake")."""
+    now = time.time() if now is None else now
     row = conn.execute("SELECT ts, odo_guess, raw FROM telemetry ORDER BY ts DESC LIMIT 1").fetchone()
-    if not row or time.time() - row[0] >= 180:
+    if not row or now - row[0] >= 180:
         return False
     ts, odo, raw = row
     try:
@@ -562,6 +573,154 @@ def _loc_purge(conn):
         conn.execute("DELETE FROM positions WHERE ts < ?", (int(time.time()) - LOC_KEEP * 86400,))
         conn.commit()
 
+def _loc_tenfold(small, big, allow):
+    """True when big is small with its longitude x 10 (within allow km), i.e. small is the digit-short
+    reading of the same place. The cloud only ever loses a digit, so of two such readings the larger is real."""
+    if abs(small[1] * 10) > 180 or abs(big[1]) <= abs(small[1]):
+        return False
+    return _loc_km((small[0], small[1] * 10), big) <= allow
+
+def _loc_store(conn, st, ts, p, moving):
+    """Keep p as the newest good fix: it becomes the reference the next one is judged against."""
+    st.misses, st.has_fix, st.rejected = 0, True, []
+    st.ref = (ts, p[0], p[1], _loc_frame(conn, ts)[0])
+    conn.execute("INSERT OR REPLACE INTO positions(ts, lat, lng, moving) VALUES (?,?,?,?)",
+                 (int(ts), p[0], p[1], 1 if moving else 0))
+    conn.commit()
+    if not moving:
+        st.want_parked = False
+
+def _loc_repair_stored(conn, st, p, ts, odo):
+    """The safety net. p failed the jump check, but it is where the stored fix would be with its longitude
+    x 10: then the stored one was digit-short (a first fix whose check read was short too). Correct it and
+    the short rows just before it, so p can be kept. Returns how many rows were corrected. Same guards as
+    the forward repair in _loc_gate: only for jumps over LOC_REPAIR_KM, and the x 10 reading must fit the
+    allowance and be 10 times closer, so real history near lng 0 is never touched."""
+    ref = st.ref
+    if ref is None or abs(ref[2] * 10) > 180:
+        return 0
+    d = _loc_km(ref[1:3], p)
+    dr = _loc_km((ref[1], ref[2] * 10), p)
+    if not (d > LOC_REPAIR_KM and dr <= _loc_allow_km(ref, ts, odo) and dr * 10 < d):
+        return 0
+    fix = []
+    for t, lat, lng in conn.execute("SELECT ts, lat, lng FROM positions WHERE ts <= ? ORDER BY ts DESC LIMIT ?",
+                                    (int(ref[0]), LOC_REPAIR_ROWS)).fetchall():
+        q = (lat, lng * 10)
+        if (abs(lng * 10) > 180 or _loc_km((lat, lng), p) <= LOC_REPAIR_KM
+                or _loc_km(q, p) > LOC_VMAX_KMH * max(0.0, ts - t) / 3600 + LOC_SLACK_KM):
+            break                                     # this row was right: the short run ends here
+        fix.append((q[1], t))
+    conn.executemany("UPDATE positions SET lng = ? WHERE ts = ?", fix)
+    conn.commit()
+    return len(fix)
+
+def _loc_confirm(conn, st, p, now, moving):
+    """The check read for a held first fix. Returns a reading still to be judged by the jump check
+    (st.ref is set by then), or None when everything was decided here."""
+    h = st.held
+    first = (h[1], h[2])
+    if not p:                                         # 50052 or no fix: try again, a few times
+        st.tries += 1
+        if st.tries < LOC_CONFIRM_TRIES:
+            return None
+        st.held = None
+        _loc_store(conn, st, h[0], first, h[4])
+        print("location: no second read to check the first position against; keeping it "
+              "(a later read corrects it if its longitude was a digit short)")
+        return None
+    st.held = None
+    if _loc_tenfold(first, p, _loc_allow_km((h[0], h[1], h[2], h[3]), now, _loc_frame(conn, now)[0])):
+        print("location: the first position's longitude was a digit short; kept the second read")
+        _loc_store(conn, st, now, p, moving)
+        return None
+    _loc_store(conn, st, h[0], first, h[4])           # the first was right; the check read goes through the jump check
+    return p
+
+class _LocState:
+    """What the location thread remembers from one tick to the next."""
+    def __init__(self, conn):
+        self.last_fix, self.last_purge, self.was_moving = 0.0, None, False
+        self.want_parked = True       # a parked fix is owed (start-up, or the car just stopped) until one lands
+        # A car that has ever produced a fix supports location; its 50052s are gaps, not "unsupported".
+        self.has_fix = conn.execute("SELECT 1 FROM positions LIMIT 1").fetchone() is not None
+        self.misses, self.calls = 0, 0        # 50052s in a row; locate() calls since start (for the 50052 log)
+        row = conn.execute("SELECT ts, lat, lng FROM positions ORDER BY ts DESC LIMIT 1").fetchone()
+        self.ref = (row[0], row[1], row[2], _loc_frame(conn, row[0])[0]) if row else None   # last good fix + odometer
+        self.rejected, self.said = [], set()  # fixes that failed the jump check, in a row; one-off log lines
+        self.held, self.tries = None, 0       # a first fix inside +-18 awaiting its check read: (ts, lat, lng, odo, moving)
+
+def _loc_step(conn, st, now):
+    """One tick of the location thread (every LOC_TICK s). Returns False when the thread should stop."""
+    if st.last_purge is None:
+        st.last_purge = now
+    moving = _loc_moving(conn, now)
+    if moving:
+        st.want_parked = True
+    if st.held is not None:
+        due = now - st.last_fix >= LOC_CONFIRM        # the check read for a first fix inside +-18
+    elif moving:
+        due = now - st.last_fix >= LOC_EVERY
+    else:
+        due = ((st.want_parked and (st.was_moving or now - st.last_fix >= LOC_RETRY))
+               or (LOC_PARKED and now - st.last_fix >= LOC_PARKED))
+    if due:
+        st.last_fix = now                             # first, so a failure can't turn into a 5 s retry loop
+        p = locate()
+        st.calls += 1
+        if p == "unsupported":
+            st.misses += 1
+            if not st.has_fix and st.misses >= LOC_GIVE_UP:
+                print("location: CarLinko has no position for this car (50052); "
+                      "location capture is off until the logger restarts")
+                return False
+            if st.has_fix:                            # rare (~1 in 100+ reads); logged in full to spot a pattern
+                spd = _loc_frame(conn, now)[1]
+                age = f"{int(now - st.ref[0])}s" if st.ref else "?"
+                print(f"location: no fix this time (50052): call {st.calls} since start, "
+                      f"{'?' if spd is None else spd} km/h, last fix {age} ago; still trying")
+            p = None
+        if st.held is not None:
+            p = _loc_confirm(conn, st, p, now, moving)
+        elif p and st.ref is None and abs(p[1]) <= LOC_SHORT_MAX:
+            # Nothing stored to judge the very first fix against, and inside +-18 it could be a longitude
+            # sent a digit short. Read once more before keeping it (one extra call, once per install).
+            st.held, st.tries, st.has_fix = (now, p[0], p[1], _loc_frame(conn, now)[0], moving), 0, True
+            print(f"location: checking the first position with a second read in {LOC_CONFIRM}s")
+            p = None
+        if p:
+            odo = _loc_frame(conn, now)[0]
+            verdict, q = _loc_gate(st.ref, p, now, odo)
+            if verdict == "repaired" and "repaired" not in st.said:
+                print("location: CarLinko sent a longitude one digit short; using it x 10 "
+                      "(it fits the last fix)")
+                st.said.add("repaired")
+            if verdict == "drop":
+                n = _loc_repair_stored(conn, st, p, now, odo)
+                if n:
+                    print(f"location: the stored position had a longitude one digit short; corrected {n} "
+                          f"row{'' if n == 1 else 's'} and kept the new read")
+                else:
+                    cand = (now, p[0], p[1], odo)
+                    if st.rejected and _loc_gate(st.rejected[-1], p, now, odo)[0] != "ok":
+                        st.rejected = []              # the rejects don't agree with each other: start over
+                    st.rejected.append(cand)
+                    if len(st.rejected) < LOC_RECOVER:
+                        print(f"location: dropped a fix {_loc_km(st.ref[1:3], p):.0f} km from the last one "
+                              f"(allowed {_loc_allow_km(st.ref, now, odo):.1f} km)")
+                        p = None
+                    else:
+                        print(f"location: {LOC_RECOVER} fixes in a row agree on a new place; "
+                              "taking it (the car moved while no fix was read)")
+            else:
+                p = q
+        if p:
+            _loc_store(conn, st, now, p, moving)
+    st.was_moving = moving
+    if now - st.last_purge >= 86400:
+        _loc_purge(conn); st.last_purge = now
+    return True
+
 def location_loop():
     conn = None
     while conn is None:                               # e.g. a locked DB at boot: retry, don't die
@@ -581,74 +740,14 @@ def location_loop():
     if not _cfg().get("dash_pw_hash"):
         print("location: WARNING no dashboard_password is set -- anyone who can open this dashboard "
               "can see where the car is. Keep it on LAN/Tailscale or set one.")
-    last_fix, last_purge, was_moving = 0.0, time.time(), False
-    want_parked = True        # a parked fix is owed (start-up, or the car just stopped) until one lands
+    st = _LocState(conn)
     last_err, last_err_t = None, 0.0
-    # A car that has ever produced a fix supports location; its 50052s are gaps, not "unsupported".
-    has_fix = conn.execute("SELECT 1 FROM positions LIMIT 1").fetchone() is not None
-    misses, calls = 0, 0              # 50052s in a row; locate() calls since start (for the 50052 log)
-    row = conn.execute("SELECT ts, lat, lng FROM positions ORDER BY ts DESC LIMIT 1").fetchone()
-    ref = (row[0], row[1], row[2], _loc_frame(conn, row[0])[0]) if row else None   # last good fix + odometer
-    rejected, said = [], set()        # fixes that failed the jump check, in a row; one-off log lines
     while True:
         now = time.time()
         try:
-            moving = _loc_moving(conn)
-            if moving:
-                due = now - last_fix >= LOC_EVERY
-                want_parked = True
-            else:
-                due = ((want_parked and (was_moving or now - last_fix >= LOC_RETRY))
-                       or (LOC_PARKED and now - last_fix >= LOC_PARKED))
-            if due:
-                last_fix = now                        # first, so a failure can't turn into a 5 s retry loop
-                p = locate()
-                calls += 1
-                if p == "unsupported":
-                    misses += 1
-                    if not has_fix and misses >= LOC_GIVE_UP:
-                        print("location: CarLinko has no position for this car (50052); "
-                              "location capture is off until the logger restarts")
-                        conn.close()
-                        return
-                    if has_fix:                       # rare (~1 in 100+ reads); logged in full to spot a pattern
-                        spd = _loc_frame(conn, now)[1]
-                        age = f"{int(now - ref[0])}s" if ref else "?"
-                        print(f"location: no fix this time (50052): call {calls} since start, "
-                              f"{'?' if spd is None else spd} km/h, last fix {age} ago; still trying")
-                    p = None
-                if p:
-                    odo = _loc_frame(conn, now)[0]
-                    verdict, q = _loc_gate(ref, p, now, odo)
-                    if verdict == "repaired" and "repaired" not in said:
-                        print("location: CarLinko sent a longitude one digit short; using it x 10 "
-                              "(it fits the last fix)")
-                        said.add("repaired")
-                    if verdict == "drop":
-                        cand = (now, p[0], p[1], odo)
-                        if rejected and _loc_gate(rejected[-1], p, now, odo)[0] != "ok":
-                            rejected = []             # the rejects don't agree with each other: start over
-                        rejected.append(cand)
-                        if len(rejected) < LOC_RECOVER:
-                            print(f"location: dropped a fix {_loc_km(ref[1:3], p):.0f} km from the last one "
-                                  f"(allowed {_loc_allow_km(ref, now, odo):.1f} km)")
-                            p = None
-                        else:
-                            print(f"location: {LOC_RECOVER} fixes in a row agree on a new place; "
-                                  "taking it (the car moved while no fix was read)")
-                    else:
-                        p = q
-                if p:
-                    misses, has_fix, rejected = 0, True, []
-                    ref = (now, p[0], p[1], _loc_frame(conn, now)[0])
-                    conn.execute("INSERT OR REPLACE INTO positions(ts, lat, lng, moving) VALUES (?,?,?,?)",
-                                 (int(now), p[0], p[1], 1 if moving else 0))
-                    conn.commit()
-                    if not moving:
-                        want_parked = False
-            was_moving = moving
-            if now - last_purge >= 86400:
-                _loc_purge(conn); last_purge = now
+            if not _loc_step(conn, st, now):
+                conn.close()
+                return
         except Exception as e:
             msg = repr(e)[:160]
             if msg != last_err or now - last_err_t >= 600:     # don't print the same error every 5 s

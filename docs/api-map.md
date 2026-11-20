@@ -82,7 +82,7 @@ see [LOCATION.md](LOCATION.md).
 
 | Code | Meaning | What the logger does |
 |---|---|---|
-| `0000` | Fix in `data` | Jump check, then stores it |
+| `0000` | Fix in `data` | First-position check or jump check, then stores it |
 | `50052` `查询定位失败` | No position this time. Either the car has none in the cloud (J5, Indonesia) or a one-off gap mid-drive on a car that has one (Tiggo 7: about 1 in 100–150 reads, the next read fine, on two different accounts, so not a rate limit) | Stops only if the car never had a fix and 3 reads in a row say it; otherwise logs and carries on |
 | `50008` `车辆不在线` | Vehicle not online (asleep, no network) | Logs the code, tries again later |
 
@@ -90,8 +90,11 @@ see [LOCATION.md](LOCATION.md).
   sent `lng` 10.177 for a car at E 101.77 (the real value ÷ 10), still with `0000`, and geocoded it
   to Cameroon ([#23](https://github.com/GodrezJr2/openlinko/issues/23), @anderscheow). Seen on one
   account; a second Tiggo 7 in the same region has had 3-digit longitudes on every fix. The logger
-  repairs it in any region with its jump check (a > 500 km jump whose `lng × 10` fits), see
-  [LOCATION.md → Longitude one digit short](LOCATION.md#longitude-one-digit-short).
+  handles it in any region, with no region table: a short longitude is the real one ÷ 10, so always
+  within ±18, and a first position inside ±18 is read again before it is kept (the larger of a × 10
+  pair wins); after that, the jump check repairs a > 500 km jump whose `lng × 10` fits, and corrects a
+  stored short position when a later one is exactly × 10. See
+  [LOCATION.md → How a position is checked](LOCATION.md#how-a-position-is-checked).
 
 ## Realtime WebSocket protocol (`:4002`)
 
