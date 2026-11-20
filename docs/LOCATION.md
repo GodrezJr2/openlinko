@@ -9,7 +9,8 @@ own cloud (`/maps/deviceLocate`), the same cached fix the official app shows. Re
 the car.
 
 Not every car has one. A Tiggo 7 CSH in Malaysia reports a position. A Jaecoo J5 in Indonesia
-doesn't: the cloud answers `50052`, and the feature switches itself off after three tries. If you
+doesn't: the cloud answers `50052`, and after three tries the feature pauses itself, asking again once
+a day. If you
 try it on another model, a note in [#23](https://github.com/GodrezJr2/openlinko/issues/23) helps.
 
 ## Before you start
@@ -90,8 +91,9 @@ is 40 s: on a Tiggo 7 drive at 40 s, none of 29 reads while moving repeated the 
 ### `50052` — no position
 `50052 查询定位失败` ("location query failed") has two meanings:
 - **The car has no position in the cloud at all** (J5, Indonesia). If the car has **never** produced
-  a fix (the `positions` table is empty) and three reads in a row say `50052`, the thread stops
-  until the logger restarts. That car makes three requests in total.
+  a fix (the `positions` table is empty) and three reads in a row say `50052`, the thread pauses.
+  It then asks once a day, so if the car gains a position later (an update, a different account),
+  location comes back by itself, without a restart. That car makes three requests, then one a day.
 - **A one-off gap.** A car that normally reports a position also answers `50052` now and then,
   mid-drive, between good fixes. It isn't a rate limit: the next read is fine. Once the car has any
   fix stored, `50052` is logged and the normal schedule carries on.
@@ -195,7 +197,9 @@ parked reads.
 | `location: WARNING no dashboard_password is set …` | Location is on and the dashboard is open to anyone who can reach it. |
 | `location: location_interval=5 is below the minimum, using 30` | Your setting was raised to the floor. |
 | `location: no fix this time (50052): call 57 since start, 100 km/h, last fix 31s ago; still trying` | A one-off gap. Nothing to do. |
-| `location: CarLinko has no position for this car (50052); location capture is off until the logger restarts` | This car has no cloud position. Set `"location": false`. |
+| `location: CarLinko has no position for this car (50052); location capture is paused, checking again once a day` | This car has no cloud position. Set `"location": false` to stop even the daily check. |
+| `location: still no position for this car; checking again in 24 h` | The daily check, still `50052`. |
+| `location: CarLinko has a position for this car now; location capture is back on` | The daily check found a position. |
 | `location: dropped a fix 44 km from the last one (allowed 3.7 km)` | An impossible jump was ignored. |
 | `location: 3 fixes in a row agree on a new place; taking it …` | The car moved while no fix was read. |
 | `location: checking the first position with a second read in 45s` | Step 1: the first position is inside ±18. |

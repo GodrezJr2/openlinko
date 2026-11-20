@@ -83,7 +83,7 @@ see [LOCATION.md](LOCATION.md).
 | Code | Meaning | What the logger does |
 |---|---|---|
 | `0000` | Fix in `data` | First-position check or jump check, then stores it |
-| `50052` `查询定位失败` | No position this time. Either the car has none in the cloud (J5, Indonesia) or a one-off gap mid-drive on a car that has one (Tiggo 7: about 1 in 100–150 reads, the next read fine, on two different accounts, so not a rate limit) | Stops only if the car never had a fix and 3 reads in a row say it; otherwise logs and carries on |
+| `50052` `查询定位失败` | No position this time. Either the car has none in the cloud (J5, Indonesia) or a one-off gap mid-drive on a car that has one (Tiggo 7: about 1 in 100–150 reads, the next read fine, on two different accounts, so not a rate limit) | Pauses only if the car never had a fix and 3 reads in a row say it, then asks once a day; otherwise logs and carries on |
 | `50008` `车辆不在线` | Vehicle not online (asleep, no network) | Logs the code, tries again later |
 
 - **The longitude can arrive a digit short.** On a Tiggo 7 CSH in Malaysia (region `sea`) the cloud

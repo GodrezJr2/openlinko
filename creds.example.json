@@ -33,8 +33,8 @@
   "car_image": "OPTIONAL__setup.py_already_grabs_your_car's_own_render__set_only_to_override",
 
   "location": false,
-  "location_comment": "OPTIONAL car position (Find my car + trip routes) from CarLinko /maps/deviceLocate. Off by default because it stores where the car has been. Switches itself off if CarLinko has no position for your car (50052). Keep the dashboard private or set dashboard_password before turning it on.",
-  "location_interval": 30,
+  "location_comment": "OPTIONAL car position (Find my car + trip routes) from CarLinko /maps/deviceLocate. Off by default because it stores where the car has been. Pauses itself (and checks once a day) if CarLinko has no position for your car (50052). Keep the dashboard private or set dashboard_password before turning it on.",
+  "location_interval": 40,
   "location_parked_interval": 0,
   "location_keep_days": 90,
 

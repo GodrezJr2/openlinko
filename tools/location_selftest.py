@@ -302,13 +302,28 @@ class LoopHarness(unittest.TestCase):
 
 
 class LoopTest(LoopHarness):
-    def test_a_car_that_never_had_a_fix_stops_after_three_50052s_in_a_row(self):
+    def test_a_car_that_never_had_a_fix_pauses_after_three_50052s_then_checks_once_a_day(self):
         self.locate.return_value = "unsupported"
-        self.assertTrue(self.tick(61))                                           # the J5: asked three times...
-        self.assertTrue(self.tick(61))
-        self.assertFalse(self.tick(61))                                          # ...then the thread stops
+        for _ in range(3):                                                       # the J5: asked three times...
+            self.assertTrue(self.tick(61))
         self.assertEqual(self.locate.call_count, 3)
-        self.assertIn("off until the logger restarts", self.out.getvalue())
+        self.assertIn("paused, checking again once a day", self.out.getvalue())
+        for _ in range(23):                                                      # ...then quiet for a day
+            self.tick(3600)
+        self.assertEqual(self.locate.call_count, 3)
+        self.tick(3600)
+        self.assertEqual(self.locate.call_count, 4)                              # one check a day
+        self.assertIn("checking again in 24 h", self.out.getvalue())
+        self.assertEqual(self.stored(), 0)
+        self.locate.return_value = KL                                            # the car gains a position
+        self.tick(86400)
+        self.assertEqual(self.locate.call_count, 5)
+        self.assertEqual(self.stored(), 1)                                       # back on, without a restart
+        self.assertIn("back on", self.out.getvalue())
+        self.locate.return_value = "unsupported"
+        for _ in range(5):
+            self.drive()                                                         # now a 50052 is only a gap
+        self.assertIsNone(self.st.dormant_until)
 
     def test_a_good_read_before_the_third_50052_means_the_car_has_a_position(self):
         self.locate.return_value = "unsupported"

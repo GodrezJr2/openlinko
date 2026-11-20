@@ -381,9 +381,10 @@ def stream_loop(conn):
 # thread in this process: it reuses the logger's token.txt, never logs in itself, and goes quiet while
 # the login guard holds. Some cars/regions have no position in the cloud and answer 50052
 # (查询定位失败, seen on a J5 in Indonesia). Cars that do have a position (a Tiggo 7 in Malaysia) also
-# answer 50052 now and then, mid-drive, between good fixes. So 50052 only switches the thread off (until
-# the next restart) when this car has never produced a fix (no row in positions) and LOC_GIVE_UP reads in
-# a row said 50052. Once a fix exists, 50052 is "no fix this time" and the normal schedule carries on.
+# answer 50052 now and then, mid-drive, between good fixes. So 50052 only pauses the thread when this car
+# has never produced a fix (no row in positions) and LOC_GIVE_UP reads in a row said 50052; it then asks
+# once every LOC_DORMANT s (a day), so a car that gains a position later comes back without a restart.
+# Once a fix exists, 50052 is "no fix this time" and the normal schedule carries on.
 # Each fix is also checked against the last good one (_loc_gate): a jump farther than the car could have
 # driven is dropped, unless the same new place comes back LOC_RECOVER times in a row.
 # The cloud sometimes sends a longitude one digit short (E 101.77 as 10.177, which is in Africa). After
@@ -433,7 +434,8 @@ LOC_KEEP   = 90 if LOC_KEEP < 0 else LOC_KEEP     # a negative typo must not mea
 LOC_TICK   = 5
 LOC_RETRY  = 60           # a failed start-up/stop fix is retried this often until one lands
 LOC_UNSUPPORTED = ("50052",)
-LOC_GIVE_UP = 3           # 50052s in a row, with no fix ever stored, before the thread switches off
+LOC_GIVE_UP = 3           # 50052s in a row, with no fix ever stored, before the thread pauses
+LOC_DORMANT = 86400       # while paused for 50052, one read this often (a day) in case the car gains a position
 LOC_VMAX_KMH = 200        # jump check: no car covers more ground than this between two fixes...
 LOC_SLACK_KM = 2.0        # ...plus this much for GPS jitter and the cloud cache's age
 LOC_REPAIR_KM = 500       # lng x 10 is only considered for a jump this big (never for a real drive near lng 0)
@@ -649,15 +651,19 @@ class _LocState:
         self.ref = (row[0], row[1], row[2], _loc_frame(conn, row[0])[0]) if row else None   # last good fix + odometer
         self.rejected, self.said = [], set()  # fixes that failed the jump check, in a row; one-off log lines
         self.held, self.tries = None, 0       # a first fix inside +-18 awaiting its check read: (ts, lat, lng, odo, moving)
+        self.dormant_until = None             # paused for 50052 (no position for this car): next daily check
 
 def _loc_step(conn, st, now):
-    """One tick of the location thread (every LOC_TICK s). Returns False when the thread should stop."""
+    """One tick of the location thread (every LOC_TICK s). Returns False if the thread should stop
+    (it doesn't today: a car with no position is paused and checked once a day instead)."""
     if st.last_purge is None:
         st.last_purge = now
     moving = _loc_moving(conn, now)
     if moving:
         st.want_parked = True
-    if st.held is not None:
+    if st.dormant_until is not None:
+        due = now >= st.dormant_until                 # paused for 50052: the daily check
+    elif st.held is not None:
         due = now - st.last_fix >= LOC_CONFIRM        # the check read for a first fix inside +-18
     elif moving:
         due = now - st.last_fix >= LOC_EVERY
@@ -668,12 +674,21 @@ def _loc_step(conn, st, now):
         st.last_fix = now                             # first, so a failure can't turn into a 5 s retry loop
         p = locate()
         st.calls += 1
+        if st.dormant_until is not None:
+            if not p or p == "unsupported":
+                st.dormant_until = now + LOC_DORMANT
+                print("location: still no position for this car; checking again in 24 h")
+                p = None
+            else:
+                st.dormant_until, st.misses = None, 0
+                print("location: CarLinko has a position for this car now; location capture is back on")
         if p == "unsupported":
             st.misses += 1
             if not st.has_fix and st.misses >= LOC_GIVE_UP:
                 print("location: CarLinko has no position for this car (50052); "
-                      "location capture is off until the logger restarts")
-                return False
+                      "location capture is paused, checking again once a day")
+                st.dormant_until = now + LOC_DORMANT
+                return True
             if st.has_fix:                            # rare (~1 in 100+ reads); logged in full to spot a pattern
                 spd = _loc_frame(conn, now)[1]
                 age = f"{int(now - st.ref[0])}s" if st.ref else "?"
