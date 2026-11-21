@@ -771,8 +771,10 @@ def _loc_step(conn, st, now):
                         st.rejected = []              # the rejects don't agree with each other: start over
                     st.rejected.append(cand)
                     if len(st.rejected) < LOC_RECOVER:
-                        print(f"location: dropped a fix {_loc_km(st.ref[1:3], p):.0f} km from the last one "
-                              f"(allowed {_loc_allow_km(st.ref, now, odo):.1f} km)")
+                        d_km, dt_s = _loc_km(st.ref[1:3], p), max(1, int(now - st.ref[0]))
+                        print(f"location: dropped a fix {d_km:.0f} km from the last one "
+                              f"(allowed {_loc_allow_km(st.ref, now, odo):.1f} km; "
+                              f"{dt_s}s after it, {d_km / dt_s * 3600:.0f} km/h implied)")
                         p = None
                     else:
                         print(f"location: {LOC_RECOVER} fixes in a row agree on a new place; "

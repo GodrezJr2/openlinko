@@ -207,7 +207,7 @@ parked reads.
 | `location: CarLinko still has no position for this car after 3 days of asking; location capture is closed and will not ask again, even after a restart` | Given up. No more requests until the `loc_state` row is deleted (see `50052` above). |
 | `location: closed earlier -- CarLinko has no position for this car; not asking again` | The logger restarted and kept the saved decision. |
 | `location: CarLinko has a position for this car now; location capture is back on` | The daily check found a position. |
-| `location: dropped a fix 44 km from the last one (allowed 3.7 km)` | An impossible jump was ignored. |
+| `location: dropped a fix 44 km from the last one (allowed 3.7 km; 61s after it, 2600 km/h implied)` | An impossible jump was ignored. The line gives distance, time and implied speed, never coordinates, so it is safe to paste in a bug report. |
 | `location: 3 fixes in a row agree on a new place; taking it …` | The car moved while no fix was read. |
 | `location: checking the first position with a second read in 45s` | Step 1: the first position is inside ±18. |
 | `location: the first position's longitude was a digit short; kept the second read` | Step 1 caught the quirk. |
