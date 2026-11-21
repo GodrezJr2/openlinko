@@ -325,6 +325,49 @@ class LoopTest(LoopHarness):
             self.drive()                                                         # now a 50052 is only a gap
         self.assertIsNone(self.st.dormant_until)
 
+    def test_after_the_daily_checks_all_say_50052_location_closes_for_good(self):
+        self.locate.return_value = "unsupported"
+        for _ in range(3):
+            self.tick(61)                                                        # day 0: three asks, paused
+        self.assertTrue(self.tick(86400))                                        # day 1: still 50052, keep waiting
+        self.assertFalse(self.tick(86400))                                       # day 2: closed
+        self.assertEqual(self.locate.call_count, 5)
+        self.assertIn("will not ask again", self.out.getvalue())
+        for _ in range(10):
+            self.assertFalse(self.tick(86400))                                   # and never asks again
+        self.assertEqual(self.locate.call_count, 5)
+
+    def test_closed_stays_closed_after_a_restart_but_not_for_another_car(self):
+        self.locate.return_value = "unsupported"
+        for _ in range(3):
+            self.tick(61)
+        self.tick(86400); self.tick(86400)
+        calls = self.locate.call_count
+        with patch.object(logger, "_loc_sn", return_value="SN1"):
+            self.conn.execute("DELETE FROM loc_state WHERE k='closed'")
+            logger._loc_kv_set(self.conn, closed="SN1")
+            self.assertTrue(logger._LocState(self.conn).closed)                  # logger restarted: still closed
+        with patch.object(logger, "_loc_sn", return_value="SN2"):
+            self.assertFalse(logger._LocState(self.conn).closed)                 # a different car: tries again
+        self.assertEqual(self.locate.call_count, calls)
+
+    def test_a_restart_while_paused_does_not_start_the_asking_over(self):
+        self.locate.return_value = "unsupported"
+        for _ in range(3):
+            self.tick(61)
+        self.tick(86400)                                                         # day 1 probe
+        st = logger._LocState(self.conn)                                         # restart
+        self.assertEqual(st.probes, 1)
+        self.assertIsNotNone(st.dormant_until)
+        self.assertFalse(st.closed)
+
+    def test_a_stored_fix_clears_the_give_up_state(self):
+        logger._loc_kv_set(self.conn, probes=1, paused_until=5, closed="x")
+        self.conn.execute("insert into positions(ts, lat, lng, moving) values (1, 3.1, 101.7, 0)")
+        st = logger._LocState(self.conn)
+        self.assertFalse(st.closed)
+        self.assertEqual(self.conn.execute("select count(*) from loc_state").fetchone()[0], 0)
+
     def test_a_good_read_before_the_third_50052_means_the_car_has_a_position(self):
         self.locate.return_value = "unsupported"
         self.tick(61); self.tick(61)                                             # two misses...

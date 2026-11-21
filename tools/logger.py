@@ -383,7 +383,9 @@ def stream_loop(conn):
 # (查询定位失败, seen on a J5 in Indonesia). Cars that do have a position (a Tiggo 7 in Malaysia) also
 # answer 50052 now and then, mid-drive, between good fixes. So 50052 only pauses the thread when this car
 # has never produced a fix (no row in positions) and LOC_GIVE_UP reads in a row said 50052; it then asks
-# once every LOC_DORMANT s (a day), so a car that gains a position later comes back without a restart.
+# once every LOC_DORMANT s (a day) for LOC_PROBES days, so a car that gains a position soon comes back
+# without a restart; if those all say 50052 too the thread closes for good (saved in loc_state, so a restart
+# doesn't ask again).
 # Once a fix exists, 50052 is "no fix this time" and the normal schedule carries on.
 # Each fix is also checked against the last good one (_loc_gate): a jump farther than the car could have
 # driven is dropped, unless the same new place comes back LOC_RECOVER times in a row.
@@ -436,6 +438,7 @@ LOC_RETRY  = 60           # a failed start-up/stop fix is retried this often unt
 LOC_UNSUPPORTED = ("50052",)
 LOC_GIVE_UP = 3           # 50052s in a row, with no fix ever stored, before the thread pauses
 LOC_DORMANT = 86400       # while paused for 50052, one read this often (a day) in case the car gains a position
+LOC_PROBES = 2            # daily reads while paused; if they all say 50052 too the thread closes for good
 LOC_VMAX_KMH = 200        # jump check: no car covers more ground than this between two fixes...
 LOC_SLACK_KM = 2.0        # ...plus this much for GPS jitter and the cloud cache's age
 LOC_REPAIR_KM = 500       # lng x 10 is only considered for a jump this big (never for a real drive near lng 0)
@@ -452,7 +455,29 @@ CREATE TABLE IF NOT EXISTS positions (   -- only created when location is on
   lng       REAL,
   moving    INTEGER                -- 1 if the car was moving when the fix was read
 );
+CREATE TABLE IF NOT EXISTS loc_state (    -- what survives a restart for a car with no cloud position
+  k TEXT PRIMARY KEY,                     -- 'probes' (daily reads done), 'paused_until', 'closed' (device_sn)
+  v TEXT
+);
 """
+
+def _loc_sn():
+    try:
+        return str(_cfg().get("device_sn") or SN or "")
+    except Exception:
+        return ""
+
+def _loc_kv(conn, key):
+    row = conn.execute("SELECT v FROM loc_state WHERE k=?", (key,)).fetchone()
+    return row[0] if row else None
+
+def _loc_kv_set(conn, **kv):
+    for k, v in kv.items():
+        if v is None:
+            conn.execute("DELETE FROM loc_state WHERE k=?", (k,))
+        else:
+            conn.execute("INSERT OR REPLACE INTO loc_state(k, v) VALUES (?, ?)", (k, str(v)))
+    conn.commit()
 
 def _loc_token():
     try:
@@ -652,10 +677,24 @@ class _LocState:
         self.rejected, self.said = [], set()  # fixes that failed the jump check, in a row; one-off log lines
         self.held, self.tries = None, 0       # a first fix inside +-18 awaiting its check read: (ts, lat, lng, odo, moving)
         self.dormant_until = None             # paused for 50052 (no position for this car): next daily check
+        self.probes, self.closed = 0, False   # daily reads done while paused; closed = given up for good
+        try:                                  # a restart must not start the asking over
+            if self.has_fix:
+                _loc_kv_set(conn, probes=None, paused_until=None, closed=None)
+            else:
+                self.probes = int(_loc_kv(conn, "probes") or 0)
+                pu = _loc_kv(conn, "paused_until")
+                self.dormant_until = float(pu) if pu else None
+                # closed for this device only: another account/car gets its three tries again
+                self.closed = _loc_kv(conn, "closed") not in (None, "") and _loc_kv(conn, "closed") == _loc_sn()
+        except (sqlite3.Error, ValueError):
+            pass
 
 def _loc_step(conn, st, now):
     """One tick of the location thread (every LOC_TICK s). Returns False if the thread should stop
-    (it doesn't today: a car with no position is paused and checked once a day instead)."""
+    (only once a car with no position has been given up on: see LOC_PROBES)."""
+    if st.closed:
+        return False
     if st.last_purge is None:
         st.last_purge = now
     moving = _loc_moving(conn, now)
@@ -676,18 +715,29 @@ def _loc_step(conn, st, now):
         st.calls += 1
         if st.dormant_until is not None:
             if not p or p == "unsupported":
+                st.probes += 1
+                if st.probes >= LOC_PROBES:
+                    st.closed = True
+                    _loc_kv_set(conn, probes=st.probes, paused_until=None, closed=_loc_sn() or "-")
+                    print(f"location: CarLinko still has no position for this car after {LOC_PROBES + 1} days of "
+                          "asking; location capture is closed and will not ask again, even after a restart "
+                          "(see docs/LOCATION.md to turn it back on)")
+                    return False
                 st.dormant_until = now + LOC_DORMANT
+                _loc_kv_set(conn, probes=st.probes, paused_until=st.dormant_until)
                 print("location: still no position for this car; checking again in 24 h")
                 p = None
             else:
-                st.dormant_until, st.misses = None, 0
+                st.dormant_until, st.misses, st.probes = None, 0, 0
+                _loc_kv_set(conn, probes=None, paused_until=None, closed=None)
                 print("location: CarLinko has a position for this car now; location capture is back on")
         if p == "unsupported":
             st.misses += 1
             if not st.has_fix and st.misses >= LOC_GIVE_UP:
                 print("location: CarLinko has no position for this car (50052); "
-                      "location capture is paused, checking again once a day")
+                      f"location capture is paused, checking again once a day for {LOC_PROBES} more days")
                 st.dormant_until = now + LOC_DORMANT
+                _loc_kv_set(conn, paused_until=st.dormant_until, probes=st.probes)
                 return True
             if st.has_fix:                            # rare (~1 in 100+ reads); logged in full to spot a pattern
                 spd = _loc_frame(conn, now)[1]
@@ -756,6 +806,11 @@ def location_loop():
         print("location: WARNING no dashboard_password is set -- anyone who can open this dashboard "
               "can see where the car is. Keep it on LAN/Tailscale or set one.")
     st = _LocState(conn)
+    if st.closed:
+        print("location: closed earlier -- CarLinko has no position for this car; not asking again "
+              "(docs/LOCATION.md says how to turn it back on)")
+        conn.close()
+        return
     last_err, last_err_t = None, 0.0
     while True:
         now = time.time()
