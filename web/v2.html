@@ -1007,6 +1007,7 @@ $('shYes').onclick = () => askClose(true);
 const IC = {
   lock:    '<rect x="5" y="10.5" width="14" height="9.5" rx="2.6"/><path d="M8 10.5V7a4 4 0 018 0v3.5"/><circle cx="12" cy="15" r="1.4"/>',
   unlock:  '<rect x="5" y="10.5" width="14" height="9.5" rx="2.6"/><path d="M8 10.5V7a4 4 0 017.6-2"/><circle cx="12" cy="15" r="1.4"/>',
+  pin:     '<path d="M12 21s-6.5-6.1-6.5-11.2a6.5 6.5 0 0113 0C18.5 14.9 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.3"/>',
   find:    '<circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/><path d="M7.9 7.9a5.8 5.8 0 000 8.2M16.1 16.1a5.8 5.8 0 000-8.2M5 5a9.5 9.5 0 000 14M19 19a9.5 9.5 0 000-14"/>',
   ac:      '<circle cx="12" cy="12" r="2"/><path d="M12 10c0-3.2.4-6 2-6s3 2.2 1.8 4.2S12 10 12 10M14 12c3.2 0 6 .4 6 2s-2.2 3-4.2 1.8S14 12 14 12M12 14c0 3.2-.4 6-2 6s-3-2.2-1.8-4.2S12 14 12 14M10 12c-3.2 0-6-.4-6-2s2.2-3 4.2-1.8S10 12 10 12"/>',
   cool:    '<path d="M12 2.5v19M4.2 7l15.6 10M19.8 7L4.2 17"/><path d="M9.2 4l2.8 2.6L14.8 4M9.2 20l2.8-2.6L14.8 20M3.4 9.6L6.2 12l-2.8 2.4M20.6 9.6L17.8 12l2.8 2.4"/>',
@@ -1463,7 +1464,7 @@ function renderCards(){
   $('rowsHost').innerHTML = '<div class="rowcard">' +
     row('chart', 'Energy consumption', cons, '', 'energy') +
     row('car',   'Distance',  distSub, '', 'dist') +
-    (locOn() ? row('find', 'Location', locSub(), '', 'loc') : '') +
+    (locOn() ? row('pin', 'Location', locSub(), '', 'loc') : '') +
     row('seat',  'Seats', seatsKnown ? 'Active' : (seatCaps ? 'Off' : 'Not available'), '',
         seatCaps ? 'ac' : null) +
     '</div>';
@@ -2395,7 +2396,9 @@ const LOCV = {d: null, next: 0, map: null, layer: null, route: null};
 function locOn(){ const d = LOCV.d; return !!(d && d.enabled && typeof d.lat === 'number' && typeof d.lng === 'number'); }
 function locAgo(s){ return s == null ? '' : s < 90 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago'
   : s < 86400 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' d ago'; }
-function locSub(){ const d = LOCV.d; return (d.moving ? 'Moving' : 'Parked') + ' · ' + locAgo(d.age_s); }
+// "Moving" only while the fix is fresh (5 min): if the stop fix failed, an old one reads "Last seen 3 d ago".
+function locSub(){ const d = LOCV.d, stale = d.moving && !(d.age_s != null && d.age_s < 300);
+  return stale ? 'Last seen ' + locAgo(d.age_s) : (d.moving ? 'Moving' : 'Parked') + ' · ' + locAgo(d.age_s); }
 async function locFetch(){
   if(LOCV.d && !LOCV.d.enabled && Date.now() < LOCV.next) return;      // off: re-check every 5 min
   const first = !LOCV.d;

@@ -2113,6 +2113,7 @@ def control_verdict(op, data):
 ROUTE_PAD = 300           # s either side of an outing: picks up the fix read as it stopped
 ROUTE_MAX_SPAN = 3 * 86400
 ROUTE_MAX_POINTS = 20000  # 3 days of non-stop driving at the 30 s minimum interval is ~8.6k; plenty
+ROUTE_SEND_POINTS = 2000  # what a reply carries at most: longer routes are thinned evenly (first + last kept)
 TS_MAX = 2 ** 40          # sanity bound for ?from/?to (SQLite INTEGER would overflow on silly input)
 
 def _truthy(v):
@@ -2153,6 +2154,9 @@ def location_route(t0, t1):
         return {"points": []}
     rows = _positions("SELECT lat, lng, ts FROM positions WHERE ts BETWEEN ? AND ? ORDER BY ts LIMIT ?",
                       (t0 - ROUTE_PAD, t1 + ROUTE_PAD, ROUTE_MAX_POINTS))
+    if len(rows) > ROUTE_SEND_POINTS:                  # only multi-day routes; a normal trip is far below this
+        n = len(rows) - 1
+        rows = [rows[round(i * n / (ROUTE_SEND_POINTS - 1))] for i in range(ROUTE_SEND_POINTS)]
     return {"points": [[lat, lng, ts] for lat, lng, ts in rows]}
 
 

@@ -251,6 +251,16 @@ class ServerTest(ServerHarness):
         status, _ = self.get("/api/route?from=abc&to=1")
         self.assertEqual(status, 400)
 
+    def test_a_long_route_is_thinned_evenly_keeping_both_ends(self):
+        self.creds(location=True)
+        t = self.now - 5 * 86400
+        self.seed([(t + 30 * i, 3.0 + i * 1e-5, 101.0, 1) for i in range(8600)])   # 3 days at 30 s, worst case
+        _, route = self.get("/api/route?from=%d&to=%d" % (t, t + 30 * 8599))
+        pts = route["points"]
+        self.assertEqual(len(pts), server.ROUTE_SEND_POINTS)
+        self.assertEqual((pts[0][2], pts[-1][2]), (t, t + 30 * 8599))
+        self.assertEqual([p[2] for p in pts], sorted(p[2] for p in pts))
+
     def test_both_endpoints_need_a_session_when_the_dashboard_is_gated(self):
         self.creds(location=True)
         self.seed([(self.now - 10, 3.139, 101.6869, 1)])
@@ -293,6 +303,12 @@ class LoopHarness(unittest.TestCase):
         self.conn.execute("insert or replace into telemetry(ts, odo_guess) values (?, ?)",
                           (int(self.t + dt) - 5, odo + km))
         return self.tick(dt)
+
+    def stop(self):
+        """Tick until the drive's frames age out; returns the call count just before the stop read."""
+        while logger._loc_moving(self.conn, self.t + 5):
+            self.tick()
+        return self.locate.call_count
 
     def stored(self):
         return self.conn.execute("select count(*) from positions").fetchone()[0]
@@ -350,6 +366,86 @@ class LoopTest(LoopHarness):
         with patch.object(logger, "_loc_sn", return_value="SN2"):
             self.assertFalse(logger._LocState(self.conn).closed)                 # a different car: tries again
         self.assertEqual(self.locate.call_count, calls)
+
+    def test_a_daily_check_without_an_answer_is_not_a_probe(self):
+        # Timeouts, network errors, a stale token and the login guard all make locate() return None.
+        self.locate.return_value = "unsupported"
+        for _ in range(3):
+            self.tick(61)                                                        # paused
+        self.locate.return_value = None
+        for _ in range(10):                                                      # day 1: no answer, 10 hours running
+            self.assertTrue(self.tick(86400 if _ == 0 else 3600))
+        self.assertEqual(self.st.probes, 0)
+        self.assertFalse(logger._LocState(self.conn).closed)                     # and a restart doesn't close it
+        self.assertIn("trying again in 1 h", self.out.getvalue())
+        self.locate.return_value = KL                                            # the network comes back
+        self.tick(3600)
+        self.assertEqual(self.stored(), 1)
+        self.assertIsNone(self.st.dormant_until)
+
+    def test_only_50052s_count_towards_closing(self):
+        self.locate.return_value = "unsupported"
+        for _ in range(3):
+            self.tick(61)
+        self.locate.return_value = None
+        self.assertTrue(self.tick(86400)); self.assertTrue(self.tick(86400))    # two empty checks (the review case)
+        self.assertEqual(self.locate.call_count, 5)
+        self.locate.return_value = "unsupported"
+        self.assertTrue(self.tick(3600))                                         # first real probe (1 h retry)
+        self.assertTrue(self.tick(3600))                                         # not due yet: a day later
+        self.assertFalse(self.tick(86400))                                       # second probe: now closed
+        self.assertEqual(self.st.probes, 2)
+
+    def test_a_parked_car_that_gets_no_fix_stops_asking_after_six_reads(self):
+        self.tick()                                                              # stored fix, parked
+        self.drive(); self.drive()                                               # a drive...
+        self.locate.return_value = "unsupported"                                 # ...whose stop fix keeps failing
+        calls = self.stop()
+        for _ in range(24 * 720):                                                # 24 h of 5 s ticks, parked
+            self.tick()
+        self.assertEqual(self.locate.call_count - calls, logger.LOC_PARKED_TRIES)
+        self.assertIn("waiting until the car moves again", self.out.getvalue())
+        self.locate.return_value = None                                          # errors instead: same cap
+        self.drive(); self.drive()
+        calls = self.stop()
+        for _ in range(24 * 720):
+            self.tick()
+        self.assertEqual(self.locate.call_count - calls, logger.LOC_PARKED_TRIES)
+        self.locate.return_value = KL
+        self.drive()                                                             # moving again: reads resume
+        self.assertGreater(self.locate.call_count, calls + logger.LOC_PARKED_TRIES)
+
+    def test_a_parked_retry_backs_off(self):
+        self.tick()
+        self.drive()
+        self.locate.return_value = None
+        self.stop()
+        times = []
+        for _ in range(4000):
+            n = self.locate.call_count
+            self.tick()
+            if self.locate.call_count > n:
+                times.append(self.t)
+        gaps = [round(b - a) for a, b in zip(times, times[1:])]
+        self.assertEqual(len(times), logger.LOC_PARKED_TRIES)
+        self.assertEqual([g // 60 for g in gaps], [1, 1, 2, 4, 8])
+
+    def test_another_cars_positions_do_not_count_for_this_car(self):
+        # positions has no device column; loc_state 'sn' says which car the rows belong to.
+        with patch.object(logger, "_loc_sn", return_value="OLD"):
+            self.conn.execute("insert into positions(ts, lat, lng, moving) values (1, 3.1, 101.7, 0)")
+            st = logger._LocState(self.conn)
+            self.assertTrue(st.has_fix)                                          # history from before: adopted
+        with patch.object(logger, "_loc_sn", return_value="NEW"):
+            self.st = logger._LocState(self.conn)
+            self.assertFalse(self.st.has_fix)
+            self.assertIsNone(self.st.ref)                                       # not judged against the old car
+            self.locate.return_value = "unsupported"
+            for _ in range(3):
+                self.tick(61)
+            self.assertIsNotNone(self.st.dormant_until)                          # the new car's 50052s count
+        with patch.object(logger, "_loc_sn", return_value="NEW"):
+            self.assertFalse(logger._LocState(self.conn).has_fix)                # also after a restart
 
     def test_a_restart_while_paused_does_not_start_the_asking_over(self):
         self.locate.return_value = "unsupported"

@@ -48,9 +48,12 @@ Settings are read when the logger starts. Restart it after a change.
 
 ## What you get
 - **Classic** (`/index.html`): a *Find my car* card on the **Trips** tab, with the last fix, its
-  age, Navigate and Share. Tap a trip to draw its route.
+  age, Navigate and Share. Tap a trip to draw its route. A fix read while moving that is more than
+  5 minutes old shows only *last seen …*, not *moving*, in case the stop fix never landed.
 - **v2** (`/`): a *Location* row on Home and a **Location** page with the map, Navigate, Share,
   *Recent trips* (tap one for its route) and *Back to the car*. `/#loc` opens the page directly.
+  The row reads *Moving · 1 min ago* or *Parked · 3 d ago*; an old moving fix reads *Last seen 3 d ago*.
+  Routes longer than 2,000 points (multi-day outings only) are thinned evenly.
 - **Navigate** opens the device's own chooser: `geo:` on Android (any installed maps app), Apple
   Maps on iPhone and iPad, Google Maps directions on a desktop.
 - **Share location** uses the system share sheet where there is one (coordinates plus a Google Maps
@@ -79,7 +82,9 @@ Every open tab reads that table, never the cloud.
 - once **at start-up**
 - every `location_parked_interval` seconds while parked, if you set it
 
-A start-up or stop fix that fails is retried every 60 s until one lands.
+A start-up or stop fix that fails is retried after 1, 1, 2, 4 and 8 minutes. If none of those six
+reads lands, the thread waits until the car moves again, so a parked car that only gets `50052` or
+errors costs six requests, not one a minute.
 
 ### How often
 The car uploads its position to the cloud about **every 30 seconds**. On a Tiggo 7, reads 25–30 s
@@ -92,11 +97,14 @@ is 40 s: on a Tiggo 7 drive at 40 s, none of 29 reads while moving repeated the 
 `50052 查询定位失败` ("location query failed") has two meanings:
 - **The car has no position in the cloud at all** (J5, Indonesia). If the car has **never** produced
   a fix (the `positions` table is empty) and three reads in a row say `50052`, the thread pauses.
-  It then asks once a day for two more days. If the car gains a position in that time, location
+  It then asks once a day for two more days. Only a `50052` answer counts as one of those checks: a
+  timeout, a network error, a stale token or the login guard is no answer, and that check is tried
+  again an hour later. If the car gains a position in that time, location
   comes back by itself, without a restart. If all of those say `50052` too, the thread **closes for
   good**: about five requests in total, then none, and the decision is saved in the database
   (`loc_state` table), so a restart doesn't start the asking over. A different car or account
-  (`device_sn`) gets its own three tries. To ask again on the same car, run
+  (`device_sn`) gets its own three tries, and the old car's stored positions don't count for it
+  (`loc_state` remembers which car they came from). To ask again on the same car, run
   `python3 -c "import sqlite3; c=sqlite3.connect('carlinko.db'); c.execute('DELETE FROM loc_state'); c.commit()"`
   next to `carlinko.db` and restart the logger.
 - **A one-off gap.** A car that normally reports a position also answers `50052` now and then,
@@ -215,6 +223,9 @@ parked reads.
 | `location: CarLinko sent a longitude one digit short; using it x 10 …` | Step 3: the new position was short, repaired. |
 | `location: the stored position had a longitude one digit short; corrected 2 rows and kept the new read` | Step 3: the stored one was short, corrected. |
 | `location: request failed: ReadTimeout(…)` | CarLinko didn't answer in time. Retried on the normal schedule. |
+| `location: no parked position after 6 reads; waiting until the car moves again` | The stop or start-up fix kept failing; no more reads until the next drive. |
+| `location: the daily check got no answer; trying again in 1 h` | While paused for `50052`: a timeout or error, which doesn't count as a check. |
+| `location: a different car than the stored positions; its own position is read from scratch` | `device_sn` changed. The old car's rows stay in the history but aren't used for this car. |
 
 None of them print coordinates.
 

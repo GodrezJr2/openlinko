@@ -434,7 +434,9 @@ if 0 < LOC_PARKED < LOC_MIN_PARKED:
 LOC_KEEP   = _loc_int("location_keep_days", 90, -1, 36500)         # 0 = keep forever
 LOC_KEEP   = 90 if LOC_KEEP < 0 else LOC_KEEP     # a negative typo must not mean "forever"
 LOC_TICK   = 5
-LOC_RETRY  = 60           # a failed start-up/stop fix is retried this often until one lands
+LOC_RETRY  = 60           # a failed start-up/stop fix is retried after this, then twice as long each time...
+LOC_PARKED_TRIES = 6      # ...for this many reads in all (~16 min); then nothing until the car moves again
+LOC_PROBE_RETRY = 3600    # a daily check that got no answer at all (timeout, network, token) is retried after this
 LOC_UNSUPPORTED = ("50052",)
 LOC_GIVE_UP = 3           # 50052s in a row, with no fix ever stored, before the thread pauses
 LOC_DORMANT = 86400       # while paused for 50052, one read this often (a day) in case the car gains a position
@@ -456,7 +458,9 @@ CREATE TABLE IF NOT EXISTS positions (   -- only created when location is on
   moving    INTEGER                -- 1 if the car was moving when the fix was read
 );
 CREATE TABLE IF NOT EXISTS loc_state (    -- what survives a restart for a car with no cloud position
-  k TEXT PRIMARY KEY,                     -- 'probes' (daily reads done), 'paused_until', 'closed' (device_sn)
+  k TEXT PRIMARY KEY,                     -- 'sn' (the car the rows are from), 'sn_since' (newer than this ts),
+                                          -- 'probes' (daily reads done),
+                                          -- 'paused_until', 'closed' (device_sn)
   v TEXT
 );
 """
@@ -615,7 +619,7 @@ def _loc_store(conn, st, ts, p, moving):
                  (int(ts), p[0], p[1], 1 if moving else 0))
     conn.commit()
     if not moving:
-        st.want_parked = False
+        st.want_parked, st.parked_tries = False, 0
 
 def _loc_repair_stored(conn, st, p, ts, odo):
     """The safety net. p failed the jump check, but it is where the stored fix would be with its longitude
@@ -668,11 +672,28 @@ class _LocState:
     """What the location thread remembers from one tick to the next."""
     def __init__(self, conn):
         self.last_fix, self.last_purge, self.was_moving = 0.0, None, False
-        self.want_parked = True       # a parked fix is owed (start-up, or the car just stopped) until one lands
-        # A car that has ever produced a fix supports location; its 50052s are gaps, not "unsupported".
-        self.has_fix = conn.execute("SELECT 1 FROM positions LIMIT 1").fetchone() is not None
+        self.want_parked = True       # a parked fix is owed (start-up, or the car just stopped)...
+        self.parked_tries = 0         # ...and how many reads it has had (backoff, then given up until the car moves)
         self.misses, self.calls = 0, 0        # 50052s in a row; locate() calls since start (for the 50052 log)
-        row = conn.execute("SELECT ts, lat, lng FROM positions ORDER BY ts DESC LIMIT 1").fetchone()
+        # positions has no device column: loc_state 'sn' says which car the rows are from, and 'sn_since' the
+        # ts after which they are (a car swap). The old car's fixes must not count, neither as proof of
+        # support (has_fix) nor as the reference the new car's first fix is judged against.
+        sn, since = _loc_sn(), -1
+        try:
+            owner = _loc_kv(conn, "sn")
+            if owner is None or not sn:               # history from before this key: it is this car's
+                if sn: _loc_kv_set(conn, sn=sn)
+            elif owner != sn:
+                last = conn.execute("SELECT max(ts) FROM positions").fetchone()[0]
+                _loc_kv_set(conn, sn=sn, sn_since=last, probes=None, paused_until=None)
+                print("location: a different car than the stored positions; its own position is read from scratch")
+            since = float(_loc_kv(conn, "sn_since") or -1)
+        except (sqlite3.Error, ValueError):
+            pass
+        row = conn.execute("SELECT ts, lat, lng FROM positions WHERE ts > ? ORDER BY ts DESC LIMIT 1",
+                           (since,)).fetchone()
+        # A car that has ever produced a fix supports location; its 50052s are gaps, not "unsupported".
+        self.has_fix = row is not None
         self.ref = (row[0], row[1], row[2], _loc_frame(conn, row[0])[0]) if row else None   # last good fix + odometer
         self.rejected, self.said = [], set()  # fixes that failed the jump check, in a row; one-off log lines
         self.held, self.tries = None, 0       # a first fix inside +-18 awaiting its check read: (ts, lat, lng, odo, moving)
@@ -699,7 +720,7 @@ def _loc_step(conn, st, now):
         st.last_purge = now
     moving = _loc_moving(conn, now)
     if moving:
-        st.want_parked = True
+        st.want_parked, st.parked_tries = True, 0
     if st.dormant_until is not None:
         due = now >= st.dormant_until                 # paused for 50052: the daily check
     elif st.held is not None:
@@ -707,14 +728,23 @@ def _loc_step(conn, st, now):
     elif moving:
         due = now - st.last_fix >= LOC_EVERY
     else:
-        due = ((st.want_parked and (st.was_moving or now - st.last_fix >= LOC_RETRY))
+        # The owed parked fix: at once when the car stops, then after 1, 1, 2, 4, 8 min, then given up
+        # (below) until the car moves again. Constant 50052s or errors on a parked car cost 6 reads, not 1,440 a day.
+        retry = LOC_RETRY << max(0, st.parked_tries - 2)
+        due = ((st.want_parked and (st.was_moving or now - st.last_fix >= retry))
                or (LOC_PARKED and now - st.last_fix >= LOC_PARKED))
     if due:
         st.last_fix = now                             # first, so a failure can't turn into a 5 s retry loop
         p = locate()
         st.calls += 1
         if st.dormant_until is not None:
-            if not p or p == "unsupported":
+            if p is None:                             # timeout, network, stale token, login guard: no answer,
+                st.dormant_until = now + LOC_PROBE_RETRY   # so not a probe; ask again in an hour
+                _loc_kv_set(conn, paused_until=st.dormant_until)
+                if "probe-retry" not in st.said:
+                    print("location: the daily check got no answer; trying again in 1 h")
+                    st.said.add("probe-retry")
+            elif p == "unsupported":
                 st.probes += 1
                 if st.probes >= LOC_PROBES:
                     st.closed = True
@@ -783,6 +813,12 @@ def _loc_step(conn, st, now):
                 p = q
         if p:
             _loc_store(conn, st, now, p, moving)
+        if not moving and st.want_parked and st.held is None and st.dormant_until is None:
+            st.parked_tries += 1                      # the owed parked fix didn't land this time
+            if st.parked_tries >= LOC_PARKED_TRIES:
+                st.want_parked, st.parked_tries = False, 0
+                print(f"location: no parked position after {LOC_PARKED_TRIES} reads; "
+                      "waiting until the car moves again")
     st.was_moving = moving
     if now - st.last_purge >= 86400:
         _loc_purge(conn); st.last_purge = now

@@ -476,7 +476,7 @@
   #tripOut svg{display:block;margin:14px 0 6px}
   .tpmap{height:264px;margin:14px 0 6px;border:1px solid var(--line);border-radius:14px;overflow:hidden;z-index:0}
   .fclinks{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}
-  .fclinks a,.fclinks button{flex:1;min-width:104px;text-align:center;padding:9px 10px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--surface);text-decoration:none;cursor:pointer}
+  .fclinks a,.fclinks button{flex:1;min-width:104px;min-height:44px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;text-align:center;padding:9px 10px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--surface);text-decoration:none;cursor:pointer}
   [data-theme=dark] #fcMap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.9)}
   #findCar.fcoff{display:none!important}
   .trip.hasroute{cursor:pointer}
@@ -1222,6 +1222,7 @@ async function fcShare(){
   b.dataset.busy='1'; b.textContent= ok? T('Copied')+' \u2713' : ll;
   setTimeout(()=>{ delete b.dataset.busy; b.textContent=T(navigator.share?'Share location':'Copy location'); }, ok?2000:8000);
 }
+const LOC_FRESH_S=300;     // past 5 min a "moving" fix is just the last one seen
 async function loadLocation(){
   if(!_fcOn&&Date.now()<_fcNext) return;          // off: re-check once a minute, not on every 5 s read
   let d; try{ const r=await fetch('api/location',{cache:'no-store'}); if(!r.ok) return; d=await r.json(); }catch(e){ return; }
@@ -1230,7 +1231,9 @@ async function loadLocation(){
   const sec=$('findCar');
   if(!_fcOn||typeof d.lat!=='number'||typeof d.lng!=='number'){ sec.classList.add('fcoff'); return; }
   const was=sec.classList.contains('fcoff'); sec.classList.remove('fcoff');
-  $('fcAge').textContent = T('last seen')+' '+(d.age_s!=null?ago(d.age_s/60)+' '+T('ago'):'')+' · '+T(d.moving?'moving':'parked');
+  // "moving" only while the fix is fresh: a stop fix that never landed must not leave the car "moving" for days
+  const stale=d.moving&&!(d.age_s!=null&&d.age_s<LOC_FRESH_S);
+  $('fcAge').textContent = T('last seen')+' '+(d.age_s!=null?ago(d.age_s/60)+' '+T('ago'):'')+(stale?'':' · '+T(d.moving?'moving':'parked'));
   fcLinks(d.lat,d.lng);
   const moved=!_fcPos||_fcPos.lat!==d.lat||_fcPos.lng!==d.lng;
   _fcPos={lat:d.lat,lng:d.lng};
