@@ -635,8 +635,9 @@ def _loc_repair_stored(conn, st, p, ts, odo):
     if not (d > LOC_REPAIR_KM and dr <= _loc_allow_km(ref, ts, odo) and dr * 10 < d):
         return 0
     fix = []
-    for t, lat, lng in conn.execute("SELECT ts, lat, lng FROM positions WHERE ts <= ? ORDER BY ts DESC LIMIT ?",
-                                    (int(ref[0]), LOC_REPAIR_ROWS)).fetchall():
+    for t, lat, lng in conn.execute("SELECT ts, lat, lng FROM positions WHERE ts <= ? AND ts > ? "
+                                    "ORDER BY ts DESC LIMIT ?",
+                                    (int(ref[0]), st.since, LOC_REPAIR_ROWS)).fetchall():
         q = (lat, lng * 10)
         if (abs(lng * 10) > 180 or _loc_km((lat, lng), p) <= LOC_REPAIR_KM
                 or _loc_km(q, p) > LOC_VMAX_KMH * max(0.0, ts - t) / 3600 + LOC_SLACK_KM):
@@ -690,6 +691,7 @@ class _LocState:
             since = float(_loc_kv(conn, "sn_since") or -1)
         except (sqlite3.Error, ValueError):
             pass
+        self.since = since                    # rows at or before this ts are another car's
         row = conn.execute("SELECT ts, lat, lng FROM positions WHERE ts > ? ORDER BY ts DESC LIMIT 1",
                            (since,)).fetchone()
         # A car that has ever produced a fix supports location; its 50052s are gaps, not "unsupported".

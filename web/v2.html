@@ -2397,7 +2397,8 @@ function locOn(){ const d = LOCV.d; return !!(d && d.enabled && typeof d.lat ===
 function locAgo(s){ return s == null ? '' : s < 90 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago'
   : s < 86400 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' d ago'; }
 // "Moving" only while the fix is fresh (5 min): if the stop fix failed, an old one reads "Last seen 3 d ago".
-function locSub(){ const d = LOCV.d, stale = d.moving && !(d.age_s != null && d.age_s < 300);
+const LOC_FRESH_S = 300;   // past 5 min a "moving" fix is just the last one seen (same as the classic page)
+function locSub(){ const d = LOCV.d, stale = d.moving && !(d.age_s != null && d.age_s < LOC_FRESH_S);
   return stale ? 'Last seen ' + locAgo(d.age_s) : (d.moving ? 'Moving' : 'Parked') + ' · ' + locAgo(d.age_s); }
 async function locFetch(){
   if(LOCV.d && !LOCV.d.enabled && Date.now() < LOCV.next) return;      // off: re-check every 5 min

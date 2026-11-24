@@ -2124,14 +2124,18 @@ def _truthy(v):
 def _location_on():
     return _truthy(_creds().get("location")) and not DEMO
 
-def _positions(sql, args):
+def _positions(sql, args, fallback=None):
     if not os.path.exists(DB):
         return []
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=5)
     try:
-        return conn.execute(sql, args).fetchall()
-    except sqlite3.OperationalError:          # no positions table yet (logger not restarted with location on)
-        return []
+        for q in (sql, fallback):
+            if q is None:
+                return []
+            try:
+                return conn.execute(q, args).fetchall()
+            except sqlite3.OperationalError:  # no positions table yet (logger not restarted with location
+                continue                      # on), or no loc_state yet: then the fallback query
     finally:
         conn.close()
 
@@ -2141,11 +2145,18 @@ def location_latest():
     out = {"enabled": _location_on(), "lat": None, "lng": None, "ts": None, "age_s": None,
            "moving": None, "since": None}
     if out["enabled"]:
-        r = _positions("SELECT ts, lat, lng, moving, (SELECT min(ts) FROM positions) "
-                       "FROM positions ORDER BY ts DESC LIMIT 1", ())
+        # After a car swap (the logger's loc_state 'sn_since') the old car's rows are not this car's
+        # position: Find my car must not point at them. They stay in `since`, for the old trips' routes.
+        base = "SELECT ts, lat, lng, moving, (SELECT min(ts) FROM positions) FROM positions "
+        r = _positions(base + "WHERE ts > coalesce((SELECT CAST(v AS INTEGER) FROM loc_state "
+                       "WHERE k='sn_since'), -1) ORDER BY ts DESC LIMIT 1", (),
+                       fallback=base + "ORDER BY ts DESC LIMIT 1")
         if r:
             ts, lat, lng, mv, since = r[0]
             out.update(ts=ts, lat=lat, lng=lng, moving=bool(mv), age_s=int(time.time()) - ts, since=since)
+        else:                                          # empty, or only a previous car's rows: routes still count
+            s = _positions("SELECT min(ts) FROM positions", ())
+            out["since"] = s[0][0] if s else None
     return out
 
 def location_route(t0, t1):

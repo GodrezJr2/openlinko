@@ -233,12 +233,17 @@ on in demo mode and never call CarLinko themselves. Both need a session when the
 - `lat`, `lng`, `ts`, `age_s`, `moving` are `null` until the first fix. With location off,
   `enabled` is `false` and the rest are `null`.
 - `since` is the oldest stored fix, so a UI only offers routes for outings that can have one.
+- `moving` is how the car was when that fix was read. If the fix read as the car stopped never
+  landed, the newest fix can be an old moving one: both UIs treat `moving` with an `age_s` over 300
+  as stale and show only how long ago it was seen.
+- After the car changes (`device_sn`), the previous car's fixes aren't returned here until the new
+  car has one of its own. Its routes stay available.
 
 `GET /api/route?from=<ts>&to=<ts>`: the fixes for one outing, `{"points": [[lat, lng, ts], ...]}`.
 
 - The range is padded by 300 s on each side, to pick up the fix read as the car stopped.
-- At most 3 days and 20000 points. A reversed or oversized range, or location off, gives
-  `{"points": []}`. A non-integer `from`/`to` gives `400`.
+- At most 3 days. A route of more than 2000 points is thinned evenly, first and last point kept.
+- A reversed or oversized range, or location off, gives `{"points": []}`. A non-integer `from`/`to` gives `400`.
 - On demand only: nothing serves the whole history at once.
 
 ---

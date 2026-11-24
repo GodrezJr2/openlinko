@@ -251,6 +251,29 @@ class ServerTest(ServerHarness):
         status, _ = self.get("/api/route?from=abc&to=1")
         self.assertEqual(status, 400)
 
+    def test_after_a_car_swap_find_my_car_does_not_show_the_old_car(self):
+        self.creds(location=True)
+        self.seed([(self.now - 7200, 3.139, 101.6869, 0)])                       # the old car's last fix
+        conn = sqlite3.connect(server.DB)
+        logger._loc_kv_set(conn, sn="NEW", sn_since=self.now - 7200)             # as the logger records a swap
+        conn.close()
+        _, loc = self.get("/api/location")
+        self.assertIsNone(loc["lat"])                                            # nothing for the new car yet
+        self.assertEqual(loc["since"], self.now - 7200)                          # old trips keep their routes
+        self.seed([(self.now - 30, 52.52, 13.405, 1)])                           # the new car's first fix
+        _, loc = self.get("/api/location")
+        self.assertEqual((loc["lat"], loc["ts"]), (52.52, self.now - 30))
+
+    def test_latest_still_works_without_loc_state(self):
+        # A positions table from before loc_state existed (logger not restarted yet).
+        self.creds(location=True)
+        conn = sqlite3.connect(server.DB)
+        conn.execute("CREATE TABLE positions (ts INTEGER PRIMARY KEY, lat REAL, lng REAL, moving INTEGER)")
+        conn.execute("INSERT INTO positions VALUES (?, 3.139, 101.6869, 0)", (self.now - 60,))
+        conn.commit(); conn.close()
+        _, loc = self.get("/api/location")
+        self.assertEqual(loc["lat"], 3.139)
+
     def test_a_long_route_is_thinned_evenly_keeping_both_ends(self):
         self.creds(location=True)
         t = self.now - 5 * 86400
@@ -446,6 +469,25 @@ class LoopTest(LoopHarness):
             self.assertIsNotNone(self.st.dormant_until)                          # the new car's 50052s count
         with patch.object(logger, "_loc_sn", return_value="NEW"):
             self.assertFalse(logger._LocState(self.conn).has_fix)                # also after a restart
+
+    def test_the_digit_short_repair_never_touches_the_old_cars_rows(self):
+        # The old car's rows are digit-short-looking (lng 10.17); the new car's first fix (kept as read
+        # after empty check reads) is too, and its next read is x 10. Only the new car's row is corrected.
+        self.conn.execute("insert into positions(ts, lat, lng, moving) values (?, 3.139, 10.16869, 0)",
+                          (int(self.t) - 600,))
+        with patch.object(logger, "_loc_sn", return_value="OLD"):
+            logger._LocState(self.conn)
+        with patch.object(logger, "_loc_sn", return_value="NEW"):
+            self.st = logger._LocState(self.conn)
+            self.locate.return_value = (3.139, 10.16869)
+            self.tick()                                                          # first fix inside +-18: held
+            self.locate.return_value = None
+            for _ in range(logger.LOC_CONFIRM_TRIES):
+                self.tick(46)                                                    # no check read: kept as read
+            self.locate.return_value = KL
+            self.drive(61)                                                       # x 10 of it: repair
+        self.assertIn("corrected 1 row", self.out.getvalue())
+        self.assertEqual(self.lngs(), [10.16869, 101.6869, 101.6869])
 
     def test_a_restart_while_paused_does_not_start_the_asking_over(self):
         self.locate.return_value = "unsupported"
