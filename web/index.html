@@ -478,6 +478,8 @@
   .fclinks{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}
   .fclinks a,.fclinks button{flex:1;min-width:104px;min-height:44px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;text-align:center;padding:9px 10px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--surface);text-decoration:none;cursor:pointer}
   [data-theme=dark] #fcMap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.9)}
+  /* touch screens: Leaflet's 30 px zoom buttons are below the 44 px touch target; a mouse keeps them small */
+  @media (pointer:coarse){ #fcMap .leaflet-bar a{width:44px;height:44px;line-height:44px;font-size:22px} }
   #findCar.fcoff{display:none!important}
   .trip.hasroute{cursor:pointer}
   .trip.hasroute .when::after{content:" · \1F5FA\FE0F"}
@@ -1184,7 +1186,7 @@ function fcShowCar(){
   if(!_fcPos||!fcInit()) return;
   _fcRoute=false; $('fcBack').style.display='none';
   _fcLayer.clearLayers();
-  L.marker([_fcPos.lat,_fcPos.lng],{icon:tpPin('#2563eb','\u{1F697}')}).addTo(_fcLayer);
+  L.marker([_fcPos.lat,_fcPos.lng],{interactive:false,keyboard:false,icon:tpPin('#2563eb','\u{1F697}')}).addTo(_fcLayer);
   _fcMap.setView([_fcPos.lat,_fcPos.lng],16,{animate:false});   // instant: the map is reused, so an
   setTimeout(()=>{ try{_fcMap.invalidateSize();}catch(e){} },140);
   $('fcCap').textContent = T('Tap a trip to see its route.');
@@ -1245,10 +1247,10 @@ async function fcShowRoute(t){
   if(pts.length<2||!fcInit()){ $('fcCap').textContent=T('No route was recorded for this trip.'); sec.scrollIntoView({behavior:'smooth',block:'center'}); return; }
   _fcRoute=true; _fcLayer.clearLayers();
   const line=pts.map(p=>[p[0],p[1]]);
-  L.polyline(line,{color:'#2d8f5f',weight:7,opacity:.22,lineJoin:'round',lineCap:'round'}).addTo(_fcLayer);
-  L.polyline(line,{color:'#2d8f5f',weight:3.5,opacity:.95,lineJoin:'round',lineCap:'round'}).addTo(_fcLayer);
-  L.marker(line[0],{icon:tpPin('#2563eb','A')}).addTo(_fcLayer);
-  L.marker(line[line.length-1],{icon:tpPin('#2d8f5f','B')}).addTo(_fcLayer);
+  L.polyline(line,{interactive:false,color:'#2d8f5f',weight:7,opacity:.22,lineJoin:'round',lineCap:'round'}).addTo(_fcLayer);
+  L.polyline(line,{interactive:false,color:'#2d8f5f',weight:3.5,opacity:.95,lineJoin:'round',lineCap:'round'}).addTo(_fcLayer);
+  L.marker(line[0],{interactive:false,keyboard:false,icon:tpPin('#2563eb','A')}).addTo(_fcLayer);
+  L.marker(line[line.length-1],{interactive:false,keyboard:false,icon:tpPin('#2d8f5f','B')}).addTo(_fcLayer);
   _fcMap.fitBounds(L.latLngBounds(line).pad(0.12),{animate:false});  // animated zoom from the car view can be cut short
   setTimeout(()=>{ try{_fcMap.invalidateSize();}catch(e){} },140);
   const b=$('fcBack'); b.textContent=T('Back to the car'); b.style.display=_fcPos?'':'none';
