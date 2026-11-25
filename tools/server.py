@@ -118,10 +118,16 @@ def is_configured():
     c = _creds()
     return bool(c.get("email") and c.get("password") and c.get("vehicle_id"))
 
+# CarLinko regions that answer a login (checked 25 Nov 2026); the API host is cqr-api-<region>.hzhjcl.com
+REGIONS_HINT = "sea, emea, me, saf, vn"
+
 def web_login(email, password, region="sea", gmaps_key=None, dashboard_password=None):
     """Run the same flow as setup.py from a browser POST: log in, auto-detect the car, persist."""
     c = _creds()
-    c["email"] = email.strip(); c["password"] = password; c["region"] = (region or "sea").strip() or "sea"
+    region = (region or "sea").strip().lower() or "sea"
+    if not re.fullmatch(r"[a-z]{2,8}", region):        # it becomes part of the API host name
+        raise ValueError("region must be a short name such as " + REGIONS_HINT)
+    c["email"] = email.strip(); c["password"] = password; c["region"] = region
     if gmaps_key and gmaps_key.strip():
         c["gmaps_key"] = gmaps_key.strip()
     cpath = os.path.join(_DATA, "creds.json")
@@ -2412,10 +2418,10 @@ class H(BaseHTTPRequestHandler):
                     code = m.group(1) if m else "?"
                     if code == "10012":                    # CarLinko: 用户不存在 (user does not exist)
                         msg = ("No CarLinko account with that email in this region (code 10012). "
-                               "Check the email, or try another region (sea / emea).")
+                               "Check the email, or try another region (" + REGIONS_HINT + ").")
                     else:
                         msg = (f"Login failed (code {code}) — check your email and password, "
-                               "or try another region (sea / emea).")
+                               "or try another region (" + REGIONS_HINT + ").")
                 self._send(200, json.dumps({"ok": False, "error": msg[:160]}).encode(), "application/json")
             return
         if path == "/api/unlock":                          # re-enter the dashboard password to get a session

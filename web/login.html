@@ -116,13 +116,11 @@
   .eye svg{width:18px;height:18px}
   .hint{font-size:12px;color:var(--fnt);margin-top:6px;line-height:1.5}
 
-  /* region: a segmented control, the two clouds CarLinko runs */
-  .seg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px;background:var(--card-2);
-    border:1px solid var(--line);border-radius:var(--r2)}
-  .seg button{border:0;background:none;padding:9px 6px;border-radius:var(--r1);font-size:14px;font-weight:500;
-    color:var(--mut);cursor:pointer;transition:background .14s var(--eo),color .14s var(--eo)}
-  .seg button[aria-checked="true"]{background:var(--card);color:var(--ink);font-weight:600;box-shadow:var(--sh-1)}
-  .seg small{display:block;font-size:11px;font-weight:400;color:var(--fnt)}
+  /* region: CarLinko runs one cloud per region and an account only exists in the one it was made in */
+  .in select{flex:1;min-width:0;border:0;background:none;padding:13px 14px;font-size:16px;outline:none;
+    color:var(--ink);cursor:pointer;appearance:none;-webkit-appearance:none}
+  .in select option{background:var(--card);color:var(--ink)}
+  .in .chev{flex:none;width:16px;height:16px;margin-right:14px;color:var(--mut);pointer-events:none}
 
   details{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
   summary{list-style:none;cursor:pointer;font-size:14px;font-weight:500;color:var(--mut);
@@ -194,11 +192,15 @@
         <div class="in"><input id="password" name="password" type="password" autocomplete="current-password" required>
           <button type="button" class="eye" data-for="password" aria-label="Show password" aria-pressed="false"></button></div></label>
 
-      <div class="f"><span id="regLbl">Region</span>
-        <div class="seg" role="radiogroup" aria-labelledby="regLbl" id="region">
-          <button type="button" role="radio" data-v="sea" aria-checked="true">SEA<small>Asia Pacific</small></button>
-          <button type="button" role="radio" data-v="emea" aria-checked="false">EMEA<small>Europe, Middle East</small></button>
-        </div></div>
+      <label class="f"><span>Region</span>
+        <div class="in"><select id="region" name="region">
+            <option value="sea" selected>SEA · Southeast Asia, Asia Pacific</option>
+            <option value="emea">EMEA · Europe, Middle East, Africa</option>
+            <option value="me">ME · Middle East</option>
+            <option value="saf">SAF · South Africa</option>
+            <option value="vn">VN · Vietnam</option>
+          </select><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        <div class="hint">The region your CarLinko account was made in. If sign-in says there is no account with that email, try another one.</div></label>
 
       <details>
         <summary>More options<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></summary>
@@ -280,18 +282,6 @@
     };
   });
 
-  let region = 'sea';
-  const segBtns = [...$('region').querySelectorAll('button')];
-  function pick(b){ region = b.dataset.v; segBtns.forEach(x => x.setAttribute('aria-checked', x === b)); }
-  segBtns.forEach((b, i) => {
-    b.onclick = () => pick(b);
-    b.onkeydown = e => {                     // radiogroup arrows
-      if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){
-        e.preventDefault(); const n = segBtns[(i + 1) % segBtns.length]; pick(n); n.focus();
-      }
-    };
-  });
-
   function busy(btn, on, label){ btn.disabled = on; btn.classList.toggle('loading', on); btn.textContent = label; }
 
   $('cfg').addEventListener('submit', async e => {
@@ -301,7 +291,7 @@
     busy(btn, true, 'Signing in…');
     try{
       const d = await (await fetch('api/login', {method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({email:$('email').value, password:$('password').value, region,
+        body:JSON.stringify({email:$('email').value, password:$('password').value, region:$('region').value,
           gmaps_key:$('gmaps').value, dashboard_password:$('dashpw').value})})).json();
       if(d.ok){ busy(btn, true, 'Loading your car…'); location.href = './'; return; }
       err.textContent = d.error || 'Sign in failed.';

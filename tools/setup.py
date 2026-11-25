@@ -170,7 +170,7 @@ def main():
     print("=== CarLinko login (unofficial client: the account may be disabled by CarLinko, see README) ===")
     c["email"] = ask("Email", c.get("email"))
     c["password"] = ask("Password", c.get("password"), secret=True)
-    c["region"] = ask("Region", c.get("region") or "sea") or "sea"
+    c["region"] = (ask("Region (sea, emea, me, saf, vn)", c.get("region") or "sea") or "sea").lower()
 
     ask_region(c)
 
