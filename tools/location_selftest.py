@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Checks for the opt-in car location feature (#23): reading CarLinko's cached position, the checks
-every position goes through (first-position check, jump check, digit-short repairs, 50052), and the
+every position goes through (first-position check, jump check, shifted-coordinate repairs, 50052), and the
 server's two read-only views. Nothing here touches the network or real data.
 
     python3 tools/location_selftest.py
 
 Based on anderscheow's tools/location_selftest.py (https://github.com/anderscheow/openlinko, commit
 926e795, MIT), adapted to this branch: there is no region box or dashboard switch here, the location
-thread is driven through _loc_step() with a fake clock, and the first-position (+-18) and stored-fix
-repair cases are added. anderscheow's digit-short case (E 101.77414 sent as 10.177414) is used as is.
+thread is driven through _loc_step() with a fake clock, and the first-position (lng +-18, lat +-9) and
+stored-fix repair cases are added. anderscheow's case (E 101.77414 sent as 10.177414) is used as is, plus
+the three shifts a Tiggo 7 showed in one night (lng / 10, lng / 100, lat / 10).
 """
 import atexit
 import contextlib
@@ -36,8 +37,15 @@ import logger   # noqa: E402
 import server   # noqa: E402
 
 KL = (3.139, 101.6869)                        # a plausible fix in Kuala Lumpur
+BKK = (13.7563, 100.5018)                     # Bangkok: outside both first-fix bands, so kept at once
 SHORT_CASE = (3.048407, 10.177414)            # anderscheow's live case: E 101.77414 lost a digit
 SHORT_REAL = (3.048407, 101.77414)
+# The three shifts a Tiggo 7 in Malaysia showed in one night, every digit kept (the last two one second
+# after a parked read of the same spot). Made-up places with the same shape, not the car's real ones.
+T7_SPOT = (6.121347, 100.367198)
+T7_LNG10 = (6.118263, 10.036142)       # real (6.118265, 100.361417): / 10, mid-drive
+T7_LNG100 = (6.121313, 1.003672)       # real (6.121314, 100.367198): / 100, parked
+T7_LAT10 = (0.612133, 100.367191)      # real (6.121319, 100.367208): latitude / 10, parked
 
 
 class FixTest(unittest.TestCase):
@@ -301,7 +309,7 @@ class LoopHarness(unittest.TestCase):
             p = patch.object(logger, name, value)
             p.start()
             self.addCleanup(p.stop)
-        self.locate = MagicMock(return_value=KL)
+        self.locate = MagicMock(return_value=BKK)
         p = patch.object(logger, "locate", self.locate)
         p.start()
         self.addCleanup(p.stop)
@@ -354,7 +362,7 @@ class LoopTest(LoopHarness):
         self.assertEqual(self.locate.call_count, 4)                              # one check a day
         self.assertIn("checking again in 24 h", self.out.getvalue())
         self.assertEqual(self.stored(), 0)
-        self.locate.return_value = KL                                            # the car gains a position
+        self.locate.return_value = BKK                                            # the car gains a position
         self.tick(86400)
         self.assertEqual(self.locate.call_count, 5)
         self.assertEqual(self.stored(), 1)                                       # back on, without a restart
@@ -401,7 +409,7 @@ class LoopTest(LoopHarness):
         self.assertEqual(self.st.probes, 0)
         self.assertFalse(logger._LocState(self.conn).closed)                     # and a restart doesn't close it
         self.assertIn("trying again in 1 h", self.out.getvalue())
-        self.locate.return_value = KL                                            # the network comes back
+        self.locate.return_value = BKK                                            # the network comes back
         self.tick(3600)
         self.assertEqual(self.stored(), 1)
         self.assertIsNone(self.st.dormant_until)
@@ -434,7 +442,7 @@ class LoopTest(LoopHarness):
         for _ in range(24 * 720):
             self.tick()
         self.assertEqual(self.locate.call_count - calls, logger.LOC_PARKED_TRIES)
-        self.locate.return_value = KL
+        self.locate.return_value = BKK
         self.drive()                                                             # moving again: reads resume
         self.assertGreater(self.locate.call_count, calls + logger.LOC_PARKED_TRIES)
 
@@ -471,23 +479,23 @@ class LoopTest(LoopHarness):
             self.assertFalse(logger._LocState(self.conn).has_fix)                # also after a restart
 
     def test_the_digit_short_repair_never_touches_the_old_cars_rows(self):
-        # The old car's rows are digit-short-looking (lng 10.17); the new car's first fix (kept as read
+        # The old car's rows look shifted (lng 10.17); the new car's first fix (kept as read
         # after empty check reads) is too, and its next read is x 10. Only the new car's row is corrected.
-        self.conn.execute("insert into positions(ts, lat, lng, moving) values (?, 3.139, 10.16869, 0)",
+        self.conn.execute("insert into positions(ts, lat, lng, moving) values (?, 13.7563, 10.05018, 0)",
                           (int(self.t) - 600,))
         with patch.object(logger, "_loc_sn", return_value="OLD"):
             logger._LocState(self.conn)
         with patch.object(logger, "_loc_sn", return_value="NEW"):
             self.st = logger._LocState(self.conn)
-            self.locate.return_value = (3.139, 10.16869)
+            self.locate.return_value = (13.7563, 10.05018)
             self.tick()                                                          # first fix inside +-18: held
             self.locate.return_value = None
             for _ in range(logger.LOC_CONFIRM_TRIES):
                 self.tick(46)                                                    # no check read: kept as read
-            self.locate.return_value = KL
+            self.locate.return_value = BKK
             self.drive(61)                                                       # x 10 of it: repair
         self.assertIn("corrected 1 row", self.out.getvalue())
-        self.assertEqual(self.lngs(), [10.16869, 101.6869, 101.6869])
+        self.assertEqual(self.lngs(), [10.05018, 100.5018, 100.5018])
 
     def test_a_restart_while_paused_does_not_start_the_asking_over(self):
         self.locate.return_value = "unsupported"
@@ -509,7 +517,7 @@ class LoopTest(LoopHarness):
     def test_a_good_read_before_the_third_50052_means_the_car_has_a_position(self):
         self.locate.return_value = "unsupported"
         self.tick(61); self.tick(61)                                             # two misses...
-        self.locate.return_value = KL
+        self.locate.return_value = BKK
         self.assertTrue(self.tick(61))                                           # ...then a fix
         self.assertEqual(self.stored(), 1)
         self.locate.return_value = "unsupported"
@@ -524,7 +532,7 @@ class LoopTest(LoopHarness):
         for _ in range(5):                                                       # more than LOC_GIVE_UP in a row
             self.assertTrue(self.drive())
         self.assertEqual(self.stored(), 1)                                       # nothing invented for the gap
-        self.locate.return_value = (3.14, 101.69)
+        self.locate.return_value = (13.76, 100.51)
         self.drive()
         self.assertEqual(self.stored(), 2)                                       # and the drive carries on
         self.assertIn("no fix this time (50052)", self.out.getvalue())
@@ -552,21 +560,22 @@ class LoopTest(LoopHarness):
             self.drive()
         self.assertEqual(self.stored(), 1)                                       # never three alike in a row
 
-    def test_a_longitude_one_digit_short_is_repaired_when_it_fits_the_last_fix(self):
+    def test_a_longitude_shifted_by_10_is_repaired_when_it_fits_the_last_fix(self):
         self.tick()
-        self.locate.return_value = (3.139, 10.16869)                             # 101.6869 lost its first digit
+        self.locate.return_value = (13.7563, 10.05018)                             # 100.5018 with its point shifted (/10)
         self.drive()
-        self.assertEqual(self.lngs(), [101.6869, 101.6869])
-        self.assertIn("one digit short", self.out.getvalue())
+        self.assertEqual(self.lngs(), [100.5018, 100.5018])
+        self.assertIn("decimal point shifted", self.out.getvalue())
 
 
 class FirstPositionTest(LoopHarness):
-    """The very first fix has nothing to be judged against. A digit-short longitude is the real one / 10,
-    so it is always within +-18: only a first fix inside that band gets a second read."""
+    """The very first fix has nothing to be judged against. A shifted longitude is the real one / 10 or
+    / 100, so it is always within +-18, and a shifted latitude within +-9: only a first fix inside one of
+    those bands gets a second read."""
 
-    def test_a_first_fix_outside_18_is_kept_at_once_with_no_extra_call(self):
+    def test_a_first_fix_outside_both_bands_is_kept_at_once_with_no_extra_call(self):
         self.tick()
-        self.assertEqual(self.lngs(), [101.6869])
+        self.assertEqual(self.lngs(), [100.5018])
         self.assertEqual(self.locate.call_count, 1)
         self.assertNotIn("checking the first position", self.out.getvalue())
 
@@ -580,7 +589,7 @@ class FirstPositionTest(LoopHarness):
         self.tick(5)
         self.assertEqual(self.locate.call_count, 2)
         self.assertEqual(self.lngs(), [101.77414])                               # only the real one is kept
-        self.assertIn("digit short; kept the second read", self.out.getvalue())
+        self.assertIn("shifted; kept the second read", self.out.getvalue())
 
     def test_a_real_first_fix_inside_18_is_kept(self):
         self.locate.return_value = (52.52, 13.405)                               # Berlin: genuinely inside +-18
@@ -620,6 +629,38 @@ class FirstPositionTest(LoopHarness):
         self.locate.return_value = SHORT_REAL
         self.drive()                                                             # the next read is right
         self.assertEqual(self.lngs(), [101.77414, 101.77414, 101.77414])          # corrected, kept at once
+        self.assertIn("corrected 2 rows", self.out.getvalue())
+
+    def test_a_first_fix_with_its_longitude_shifted_by_100_is_checked(self):
+        self.locate.return_value = T7_LNG100                                    # would be a pin off Gabon
+        self.tick()
+        self.assertEqual(self.stored(), 0)
+        self.locate.return_value = T7_SPOT
+        self.tick(45)
+        self.assertEqual(self.lngs(), [100.3672])
+        self.assertIn("shifted; kept the second read", self.out.getvalue())
+
+    def test_a_first_fix_with_its_latitude_shifted_is_checked(self):
+        self.locate.return_value = T7_LAT10                                     # 0.61 N: inside the +-9 band
+        self.tick()
+        self.assertEqual(self.stored(), 0)
+        self.locate.return_value = T7_SPOT
+        self.tick(45)
+        self.assertEqual([round(r[0], 5) for r in self.conn.execute("select lat from positions")], [6.12135])
+
+    def test_a_real_first_fix_near_the_equator_costs_one_check_read(self):
+        self.locate.return_value = KL                                           # 3.1 N: inside the band
+        self.tick(); self.tick(45)
+        self.assertEqual(self.locate.call_count, 2)
+        self.assertEqual(set(self.lngs()), {101.6869})
+
+    def test_if_both_reads_had_the_latitude_shifted_the_next_good_read_corrects_them(self):
+        self.locate.return_value = T7_LAT10
+        self.tick(); self.tick(45)
+        self.locate.return_value = T7_SPOT
+        self.drive()
+        lats = [round(r[0], 4) for r in self.conn.execute("select lat from positions order by ts")]
+        self.assertEqual(lats, [6.1213, 6.1213, 6.1213])
         self.assertIn("corrected 2 rows", self.out.getvalue())
 
     def test_the_safety_net_never_rewrites_real_history(self):
@@ -690,11 +731,33 @@ class GateTest(unittest.TestCase):
         self.assertAlmostEqual(logger._loc_km((0, 0), (0, 1)), 111.2, delta=0.3)
         self.assertAlmostEqual(logger._loc_km(KL, KL), 0.0)
 
-    def test_tenfold_needs_the_larger_reading_to_be_where_the_small_one_x_10_lands(self):
-        self.assertTrue(logger._loc_tenfold(SHORT_CASE, SHORT_REAL, 3))
-        self.assertFalse(logger._loc_tenfold(SHORT_REAL, SHORT_CASE, 3))           # never the other way round
-        self.assertFalse(logger._loc_tenfold((52.52, 13.405), (52.52, 13.405), 3))  # equal readings
-        self.assertFalse(logger._loc_tenfold((3.0, 20.0), (3.0, 200.0), 3))        # x 10 off the globe
+    def test_shifted_needs_the_larger_reading_to_be_where_the_small_one_unshifted_lands(self):
+        self.assertTrue(logger._loc_shifted(SHORT_CASE, SHORT_REAL, 3))
+        self.assertFalse(logger._loc_shifted(SHORT_REAL, SHORT_CASE, 3))           # never the other way round
+        self.assertFalse(logger._loc_shifted((52.52, 13.405), (52.52, 13.405), 3))  # equal readings
+        self.assertFalse(logger._loc_shifted((3.0, 20.0), (3.0, 200.0), 3))        # x 10 off the globe
+
+    def test_the_three_shifts_seen_on_a_tiggo_7_are_repaired(self):
+        moving = (1_800_000_000, 6.114042, 100.360019, None)
+        verdict, fix = logger._loc_gate(moving, T7_LNG10, moving[0] + 42, None)
+        self.assertEqual((verdict, round(fix[1], 5)), ("repaired", 100.36142))
+        parked = (1_800_000_000, T7_SPOT[0], T7_SPOT[1], 1000)
+        verdict, fix = logger._loc_gate(parked, T7_LNG100, parked[0] + 1, 1000)
+        self.assertEqual((verdict, round(fix[1], 4)), ("repaired", 100.3672))
+        verdict, fix = logger._loc_gate(parked, T7_LAT10, parked[0] + 1, 1000)
+        self.assertEqual((verdict, round(fix[0], 5)), ("repaired", 6.12133))
+
+    def test_a_shifted_latitude_near_the_equator_is_dropped_not_repaired(self):
+        # Singapore 1.35 -> 0.135 is a 135 km jump: under LOC_REPAIR_KM, so only the jump check applies
+        sg = (1_800_000_000, 1.35, 103.82, 1000)
+        self.assertEqual(logger._loc_gate(sg, (0.135, 103.82), sg[0] + 40, 1000), ("drop", None))
+
+    def test_shifted_knows_lat_and_lng_by_10_and_100(self):
+        real = (6.121314, 100.367198)
+        self.assertTrue(logger._loc_shifted(T7_LNG100, real, 3))
+        self.assertTrue(logger._loc_shifted(T7_LAT10, real, 3))
+        self.assertTrue(logger._loc_shifted(T7_LNG10, (6.118265, 100.361417), 3))
+        self.assertFalse(logger._loc_shifted(real, T7_LAT10, 3))                 # never the other way round
 
 
 class IntervalFloorTest(unittest.TestCase):

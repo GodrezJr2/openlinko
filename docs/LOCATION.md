@@ -112,43 +112,48 @@ is 40 s: on a Tiggo 7 drive at 40 s, none of 29 reads while moving repeated the 
   fix stored, `50052` is logged and the normal schedule carries on.
 
 ## How a position is checked
-CarLinko's cached position is usually right, but not always: now and then it is far off, or its
-longitude arrives **one digit short** (a car at E 101.77 came back as `10.177`, and the cloud's own
-geocoder put it in Cameroon; reported by [@anderscheow](https://github.com/anderscheow) in
-[#23](https://github.com/GodrezJr2/openlinko/issues/23)). So every position goes through these steps
-before it is stored. Nothing is smoothed or snapped to roads: a position is kept as read, corrected
-for the digit-short case, or not stored at all, so the map never draws a spike to another continent.
+CarLinko's cached position is usually right, but not always: now and then it is far off, or one
+coordinate arrives with its **decimal point shifted** left, every digit still there. A car at
+E 101.77 came back as `10.177`, and the cloud's own geocoder put it in Cameroon (reported by
+[@anderscheow](https://github.com/anderscheow) in [#23](https://github.com/GodrezJr2/openlinko/issues/23)).
+A Tiggo 7 in Malaysia showed all three kinds in one night: a longitude ÷ 10, a longitude ÷ 100
+(like E 100.36 as `1.0036`) and a latitude ÷ 10 (like N 6.12 as `0.612`). So every position goes
+through these steps before it is stored. Nothing is smoothed or snapped to roads: a position is kept
+as read, unshifted, or not stored at all, so the map never draws a spike to another continent.
 
 ```
 new position from CarLinko
   │
-  ├─ nothing stored yet? ──► 1. first-position check (±18)
+  ├─ nothing stored yet? ──► 1. first-position check (lng ±18, lat ±9)
   │
   └─ compare with the last good position ──► 2. jump check (haversine + allowance)
         ├─ fits ............................... keep it
-        ├─ lng × 10 fits ...................... 3. repair it (digit short), keep it
-        ├─ the stored one × 10 fits ........... 3. correct the stored one, keep this one
+        ├─ unshifted (× 10 / × 100) it fits ... 3. repair it, keep it
+        ├─ the stored one unshifted fits ...... 3. correct the stored one, keep this one
         └─ none of these ...................... drop it ── 4. three drops that agree: keep
 ```
 
-### 1. The first position: the ±18 check
-The very first position has nothing to be compared with. The check uses one fact: a longitude that
-lost a digit is the real one divided by 10, and the largest longitude is 180, so **a digit-short
-longitude is always between −18 and +18**.
+### 1. The first position: the band check
+The very first position has nothing to be compared with. The check uses one fact: a shifted
+coordinate is the real one divided by 10 or 100, the largest longitude is 180 and the largest
+latitude 90, so **a shifted longitude is always between −18 and +18, and a shifted latitude between
+−9 and +9**.
 
-- **Outside ±18** (all of Southeast Asia, most of Asia, Australia, the Americas): it can't be the
-  digit-short case. It is stored straight away, with no extra request.
-- **Inside ±18** it is ambiguous: a real place (Europe, Africa) or a short reading from elsewhere.
-  The logger holds it and reads again **45 s later**, once the cloud has refreshed (about every 30 s):
-  - if one reading is the other with its longitude × 10, the **larger one is kept**. The cloud
-    loses a digit, it never adds one.
+- **Outside both bands** (Thailand and north of it, most of Asia, Australia, the Americas): it can't
+  be a shifted reading. It is stored straight away, with no extra request.
+- **Inside a band** it is ambiguous: a real place (Europe, Africa, or anywhere near the equator such
+  as Malaysia, Singapore and Indonesia) or a shifted reading from elsewhere. The logger holds it and
+  reads again **45 s later**, once the cloud has refreshed (about every 30 s):
+  - if one reading is the other with a coordinate × 10 or × 100, the **larger one is kept**. The
+    cloud only ever shifts the point left.
   - if they agree, the first is stored and the second goes through the jump check as usual.
   - if the second read gets no position (three tries), the first is stored as read; step 3 corrects
-    it later if it was short.
+    it later if it was shifted.
 
-At most one extra request per install, and only when the first position is inside ±18. The quirk
-comes and goes (a Tiggo 7 in Malaysia never showed it in 681 positions; another showed it twice in a
-day, hours apart), so two short readings in a row are unlikely.
+At most one extra request per install, and only when the first position is inside a band. The
+quirk comes and goes (a Tiggo 7 in Malaysia showed none in its first 681 positions, then three in
+one night, hours apart; another car showed it twice in a day), so two shifted readings in a row are
+unlikely.
 
 ### 2. Every position after that: the jump check
 Every new position is compared with the last good one using the great-circle (haversine) distance.
@@ -168,18 +173,20 @@ allowed km = min(200 km/h × time since the last good position,  km on the odome
 Checked against 681 real positions from a Tiggo 7: none dropped, with at least 1.8 km to spare.
 The check costs about 11 µs per position on a Raspberry Pi 5.
 
-### 3. Longitude one digit short: the two repairs
-- **The new position is short.** When it jumps more than **500 km** and `lng × 10` fits the jump
-  check (and lands 10 times closer than the raw reading), `lng × 10` is stored instead.
-- **The stored position was short** (both reads in step 1 were short, which is rare). When a new
-  position fails the jump check but lands exactly where the stored one would be with `lng × 10`,
-  the stored one and the short positions just before it are corrected, and the new one is kept at
-  once.
+### 3. A shifted coordinate: the two repairs
+- **The new position is shifted.** When it jumps more than **500 km** and the position with its
+  longitude or latitude × 10 or × 100 fits the jump check (and lands 10 times closer than the raw
+  reading), that unshifted position is stored instead.
+- **The stored position was shifted** (both reads in step 1 were shifted, which is rare). When a new
+  position fails the jump check but lands exactly where the stored one would be unshifted, the
+  stored one and the positions just before it that were shifted the same way are corrected, and the
+  new one is kept at once.
 
-Both use the same guards: only for jumps over 500 km, and the × 10 reading must fit the allowance
-and be 10 times closer. A real drive near longitude 0 (London: −0.12 → −0.012 is 7.5 km) is
-therefore never "repaired", and history that was right is never rewritten. This works in any
-region; there is no region table.
+Both use the same guards: only for jumps over 500 km, and the unshifted reading must fit the
+allowance and be 10 times closer. A real drive near longitude 0 (London: −0.12 → −0.012 is 7.5 km)
+is therefore never "repaired", and history that was right is never rewritten. A shifted latitude
+close to the equator (Singapore: 1.35 → 0.135 is 135 km) is under 500 km, so it is simply dropped by
+the jump check. This works in any region; there is no region table.
 
 ### 4. When the car really moved: three that agree
 A dropped position is remembered. The next one is compared with **that dropped one**: if they agree
@@ -194,10 +201,14 @@ parked reads.
 |---|---|
 | Normal driving, 40 s at 60 km/h (0.7 km) | allowed ≈ 3–4 km: kept |
 | GPS glitch while parked, pin 15 km away | odometer flat, allowed 3 km: dropped |
-| First position 100.48 (Malaysia) | outside ±18: kept at once |
-| First position 10.048 (the quirk) | inside ±18: second read 100.48 is × 10, so 100.48 is kept |
+| First position 13.75, 100.50 (Bangkok) | outside both bands: kept at once |
+| First position 6.12, 100.36 (Malaysia) | latitude inside ±9: second read agrees, kept (one extra request) |
+| First position 6.12, 10.036 (the quirk) | inside ±18: second read 100.36 is × 10, so 100.36 is kept |
+| First position 6.12, 1.0036 | inside ±18: second read 100.36 is × 100, so 100.36 is kept |
+| First position 0.612, 100.36 | inside ±9: second read 6.12 is × 10, so 6.12 is kept |
 | First position 13.40 (Berlin), second 13.40 | they agree: kept |
 | Mid-drive 100.48 → 10.048 | 9,900 km jump, × 10 fits: repaired to 100.48 |
+| Parked 100.36 → 1.0036 or 6.12 → 0.612 | jump over 500 km, × 100 / × 10 fits: repaired |
 | Both first reads 10.048, then 100.48 | the stored ones are corrected, 100.48 kept |
 | Car on a ferry (moved, odometer flat) | dropped, dropped, then kept on the third agreeing read |
 | `50052` mid-drive | no position this time; the next read carries on |
@@ -217,11 +228,11 @@ parked reads.
 | `location: CarLinko has a position for this car now; location capture is back on` | The daily check found a position. |
 | `location: dropped a fix 44 km from the last one (allowed 3.7 km; 61s after it, 2600 km/h implied)` | An impossible jump was ignored. The line gives distance, time and implied speed, never coordinates, so it is safe to paste in a bug report. |
 | `location: 3 fixes in a row agree on a new place; taking it …` | The car moved while no fix was read. |
-| `location: checking the first position with a second read in 45s` | Step 1: the first position is inside ±18. |
-| `location: the first position's longitude was a digit short; kept the second read` | Step 1 caught the quirk. |
+| `location: checking the first position with a second read in 45s` | Step 1: the first position is inside a band. |
+| `location: the first position had its decimal point shifted; kept the second read` | Step 1 caught the quirk. |
 | `location: no second read to check the first position against; keeping it …` | Step 1 got no second position; step 3 covers it. |
-| `location: CarLinko sent a longitude one digit short; using it x 10 …` | Step 3: the new position was short, repaired. |
-| `location: the stored position had a longitude one digit short; corrected 2 rows and kept the new read` | Step 3: the stored one was short, corrected. |
+| `location: CarLinko sent a position with its decimal point shifted; using it unshifted …` | Step 3: the new position was shifted, repaired. |
+| `location: the stored position had its decimal point shifted; corrected 2 rows and kept the new read` | Step 3: the stored one was shifted, corrected. |
 | `location: request failed: ReadTimeout(…)` | CarLinko didn't answer in time. Retried on the normal schedule. |
 | `location: no parked position after 6 reads; waiting until the car moves again` | The stop or start-up fix kept failing; no more reads until the next drive. |
 | `location: the daily check got no answer; trying again in 1 h` | While paused for `50052`: a timeout or error, which doesn't count as a check. |

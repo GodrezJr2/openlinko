@@ -389,12 +389,16 @@ def stream_loop(conn):
 # Once a fix exists, 50052 is "no fix this time" and the normal schedule carries on.
 # Each fix is also checked against the last good one (_loc_gate): a jump farther than the car could have
 # driven is dropped, unless the same new place comes back LOC_RECOVER times in a row.
-# The cloud sometimes sends a longitude one digit short (E 101.77 as 10.177, which is in Africa). After
-# the first fix the jump check repairs that. The very first fix has nothing to be judged against, so:
-# a short longitude is the real one / 10 and always within +-18; a first fix outside +-18 is kept at once,
-# one inside is read again LOC_CONFIRM s later, and of two readings that differ by x 10 the larger is kept
-# (the cloud loses a digit, it never adds one). If a short value is stored anyway, the next reading that is
-# exactly x 10 of it corrects it (_loc_repair_stored). See docs/LOCATION.md "How a position is checked".
+# The cloud sometimes sends a coordinate with its decimal point shifted left, all digits still there:
+# a longitude / 10 (E 101.77 as 10.177) or / 100 (E 100.36 as 1.0036) and a latitude / 10 (N 6.12 as
+# 0.612), all seen on Tiggo 7s in Malaysia; the first two are pins in Africa. After the first fix the jump
+# check repairs that.
+# The very first fix has nothing to be judged against, so: a shifted longitude is always within +-18 and a
+# shifted latitude within +-9; a first fix outside both bands is kept at once, one inside is read again
+# LOC_CONFIRM s later, and of two readings where one is the other with a coordinate x 10 or x 100, the
+# larger is kept (the cloud only ever shifts the point left). If a shifted value is stored anyway, the next
+# reading that is exactly where it lands unshifted corrects it (_loc_repair_stored). See docs/LOCATION.md
+# "How a position is checked".
 # Settings are read at start-up: restart the logger after changing them.
 def _loc_flag(v):
     if isinstance(v, bool): return v
@@ -443,12 +447,14 @@ LOC_DORMANT = 86400       # while paused for 50052, one read this often (a day) 
 LOC_PROBES = 2            # daily reads while paused; if they all say 50052 too the thread closes for good
 LOC_VMAX_KMH = 200        # jump check: no car covers more ground than this between two fixes...
 LOC_SLACK_KM = 2.0        # ...plus this much for GPS jitter and the cloud cache's age
-LOC_REPAIR_KM = 500       # lng x 10 is only considered for a jump this big (never for a real drive near lng 0)
+LOC_REPAIR_KM = 500       # an unshift is only considered for a jump this big (never for a real drive near lng 0)
 LOC_RECOVER = 3           # this many rejected fixes in a row that agree with each other win (the car did move)
-LOC_SHORT_MAX = 18.0      # a longitude sent a digit short is the real one / 10, so always within +-18
-LOC_CONFIRM = 45          # s until the read that checks a first fix inside +-18 (past the ~30 s cloud refresh)
+LOC_SHIFTS = ((1, 10), (1, 100), (0, 10), (0, 100))   # (coordinate, factor): lng x 10/100, lat x 10/100
+LOC_SHORT_LNG = 18.0      # a shifted longitude is the real one / 10 or / 100, so always within +-18...
+LOC_SHORT_LAT = 9.0       # ...and a shifted latitude within +-9
+LOC_CONFIRM = 45          # s until the read that checks a first fix inside a band (past the ~30 s cloud refresh)
 LOC_CONFIRM_TRIES = 3     # empty check reads (50052 / no fix) before the held first fix is kept as it is
-LOC_REPAIR_ROWS = 500     # most stored rows one digit-short correction may touch
+LOC_REPAIR_ROWS = 500     # most stored rows one shift correction may touch
 LOC_STALE_TOKEN = ("9997", "40001", "40003", "401", "1001", "1002")
 LOC_SCHEMA = """
 CREATE TABLE IF NOT EXISTS positions (   -- only created when location is on
@@ -577,23 +583,43 @@ def _loc_allow_km(ref, ts, odo):
         allow = min(allow, max(0, odo - ref[3]) + 1)  # +1: the odometer counts whole km, it lags up to 1
     return allow + LOC_SLACK_KM
 
+def _loc_unshift(p, axis, m):
+    """p with coordinate axis (0 lat, 1 lng) x m, or None when that is off the globe."""
+    q = (p[0] * m, p[1]) if axis == 0 else (p[0], p[1] * m)
+    return q if abs(q[0]) <= 90 and abs(q[1]) <= 180 else None
+
+def _loc_shift_fix(ref, p, allow):
+    """The unshifted reading of p that fits ref, as (axis, m, q), or None. The guards: only for a jump
+    over LOC_REPAIR_KM, the unshifted reading must fit the allowance and land 10 times closer than the
+    raw one. Of several that fit, the closest wins."""
+    d = _loc_km(ref, p)
+    if d <= LOC_REPAIR_KM:
+        return None
+    best = None
+    for axis, m in LOC_SHIFTS:
+        q = _loc_unshift(p, axis, m)
+        if q is None:
+            continue
+        dq = _loc_km(ref, q)
+        if dq <= allow and dq * 10 < d and (best is None or dq < best[0]):
+            best = (dq, axis, m, q)
+    return best and best[1:]
+
 def _loc_gate(ref, p, ts, odo):
     """Judge fix p against the last good fix ref. Returns ("ok", p), ("repaired", p') or ("drop", None).
-    The cloud has been seen sending a longitude one digit short (E 101.77 as 10.177, a Tiggo 7 in
-    Malaysia), so a fix is also tried with lng x 10, and that reading is used when it fits. That works
-    in any region. The x 10 reading also wins when it is 10 times closer than the raw one, so a long
-    logger outage (no odometer, a huge time allowance) can't let the short value through. Only jumps over
-    LOC_REPAIR_KM qualify, so a real drive near lng 0 (London: -0.12 -> -0.012) is never "repaired"."""
+    The cloud has been seen sending a coordinate with its decimal point shifted (E 100.36 as 10.036 or
+    1.0036, N 6.12 as 0.612; Tiggo 7s in Malaysia), so a fix is also tried with each coordinate x 10 and
+    x 100, and that reading is used when it fits. That works in any region. The unshifted reading also wins
+    when it is 10 times closer than the raw one, so a long logger outage (no odometer, a huge time
+    allowance) can't let the shifted value through. Only jumps over LOC_REPAIR_KM qualify, so a real drive
+    near lng 0 (London: -0.12 -> -0.012) is never "repaired"."""
     if ref is None:
         return "ok", p
     allow = _loc_allow_km(ref, ts, odo)
-    d = _loc_km(ref[1:3], p)
-    if abs(p[1] * 10) <= 180:
-        q = (p[0], p[1] * 10)
-        dq = _loc_km(ref[1:3], q)
-        if d > LOC_REPAIR_KM and dq <= allow and dq * 10 < d:
-            return "repaired", q
-    if d <= allow:
+    fix = _loc_shift_fix(ref[1:3], p, allow)
+    if fix:
+        return "repaired", fix[2]
+    if _loc_km(ref[1:3], p) <= allow:
         return "ok", p
     return "drop", None
 
@@ -604,12 +630,15 @@ def _loc_purge(conn):
         conn.execute("DELETE FROM positions WHERE ts < ?", (int(time.time()) - LOC_KEEP * 86400,))
         conn.commit()
 
-def _loc_tenfold(small, big, allow):
-    """True when big is small with its longitude x 10 (within allow km), i.e. small is the digit-short
-    reading of the same place. The cloud only ever loses a digit, so of two such readings the larger is real."""
-    if abs(small[1] * 10) > 180 or abs(big[1]) <= abs(small[1]):
-        return False
-    return _loc_km((small[0], small[1] * 10), big) <= allow
+def _loc_shifted(small, big, allow):
+    """True when big is small with one coordinate x 10 or x 100 (within allow km), i.e. small is the
+    shifted reading of the same place. The cloud only ever shifts the point left, so of two such readings
+    the larger is real."""
+    for axis, m in LOC_SHIFTS:
+        q = _loc_unshift(small, axis, m)
+        if q is not None and abs(big[axis]) > abs(small[axis]) and _loc_km(q, big) <= allow:
+            return True
+    return False
 
 def _loc_store(conn, st, ts, p, moving):
     """Keep p as the newest good fix: it becomes the reference the next one is judged against."""
@@ -622,30 +651,32 @@ def _loc_store(conn, st, ts, p, moving):
         st.want_parked, st.parked_tries = False, 0
 
 def _loc_repair_stored(conn, st, p, ts, odo):
-    """The safety net. p failed the jump check, but it is where the stored fix would be with its longitude
-    x 10: then the stored one was digit-short (a first fix whose check read was short too). Correct it and
-    the short rows just before it, so p can be kept. Returns how many rows were corrected. Same guards as
-    the forward repair in _loc_gate: only for jumps over LOC_REPAIR_KM, and the x 10 reading must fit the
-    allowance and be 10 times closer, so real history near lng 0 is never touched."""
+    """The safety net. p failed the jump check, but it is where the stored fix would be with a coordinate
+    x 10 or x 100: then the stored one was shifted (a first fix whose check read was shifted too). Correct
+    it and the rows just before it shifted the same way, so p can be kept. Returns how many rows were
+    corrected. Same guards as the forward repair in _loc_gate: only for jumps over LOC_REPAIR_KM, and the
+    unshifted reading must fit the allowance and be 10 times closer, so real history near lng 0 is never
+    touched."""
     ref = st.ref
-    if ref is None or abs(ref[2] * 10) > 180:
+    if ref is None:
         return 0
-    d = _loc_km(ref[1:3], p)
-    dr = _loc_km((ref[1], ref[2] * 10), p)
-    if not (d > LOC_REPAIR_KM and dr <= _loc_allow_km(ref, ts, odo) and dr * 10 < d):
+    # the stored fix, unshifted, must land on p: the same test as the gate with the roles swapped
+    fix = _loc_shift_fix(p, ref[1:3], _loc_allow_km(ref, ts, odo))
+    if not fix:
         return 0
-    fix = []
+    axis, m = fix[0], fix[1]
+    rows = []
     for t, lat, lng in conn.execute("SELECT ts, lat, lng FROM positions WHERE ts <= ? AND ts > ? "
                                     "ORDER BY ts DESC LIMIT ?",
                                     (int(ref[0]), st.since, LOC_REPAIR_ROWS)).fetchall():
-        q = (lat, lng * 10)
-        if (abs(lng * 10) > 180 or _loc_km((lat, lng), p) <= LOC_REPAIR_KM
+        q = _loc_unshift((lat, lng), axis, m)
+        if (q is None or _loc_km((lat, lng), p) <= LOC_REPAIR_KM
                 or _loc_km(q, p) > LOC_VMAX_KMH * max(0.0, ts - t) / 3600 + LOC_SLACK_KM):
-            break                                     # this row was right: the short run ends here
-        fix.append((q[1], t))
-    conn.executemany("UPDATE positions SET lng = ? WHERE ts = ?", fix)
+            break                                     # this row was right: the shifted run ends here
+        rows.append((q[0], q[1], t))
+    conn.executemany("UPDATE positions SET lat = ?, lng = ? WHERE ts = ?", rows)
     conn.commit()
-    return len(fix)
+    return len(rows)
 
 def _loc_confirm(conn, st, p, now, moving):
     """The check read for a held first fix. Returns a reading still to be judged by the jump check
@@ -659,11 +690,11 @@ def _loc_confirm(conn, st, p, now, moving):
         st.held = None
         _loc_store(conn, st, h[0], first, h[4])
         print("location: no second read to check the first position against; keeping it "
-              "(a later read corrects it if its longitude was a digit short)")
+              "(a later read corrects it if it was shifted)")
         return None
     st.held = None
-    if _loc_tenfold(first, p, _loc_allow_km((h[0], h[1], h[2], h[3]), now, _loc_frame(conn, now)[0])):
-        print("location: the first position's longitude was a digit short; kept the second read")
+    if _loc_shifted(first, p, _loc_allow_km((h[0], h[1], h[2], h[3]), now, _loc_frame(conn, now)[0])):
+        print("location: the first position had its decimal point shifted; kept the second read")
         _loc_store(conn, st, now, p, moving)
         return None
     _loc_store(conn, st, h[0], first, h[4])           # the first was right; the check read goes through the jump check
@@ -698,7 +729,7 @@ class _LocState:
         self.has_fix = row is not None
         self.ref = (row[0], row[1], row[2], _loc_frame(conn, row[0])[0]) if row else None   # last good fix + odometer
         self.rejected, self.said = [], set()  # fixes that failed the jump check, in a row; one-off log lines
-        self.held, self.tries = None, 0       # a first fix inside +-18 awaiting its check read: (ts, lat, lng, odo, moving)
+        self.held, self.tries = None, 0       # a first fix inside a band awaiting its check read: (ts, lat, lng, odo, moving)
         self.dormant_until = None             # paused for 50052 (no position for this car): next daily check
         self.probes, self.closed = 0, False   # daily reads done while paused; closed = given up for good
         try:                                  # a restart must not start the asking over
@@ -726,7 +757,7 @@ def _loc_step(conn, st, now):
     if st.dormant_until is not None:
         due = now >= st.dormant_until                 # paused for 50052: the daily check
     elif st.held is not None:
-        due = now - st.last_fix >= LOC_CONFIRM        # the check read for a first fix inside +-18
+        due = now - st.last_fix >= LOC_CONFIRM        # the check read for a first fix inside a band
     elif moving:
         due = now - st.last_fix >= LOC_EVERY
     else:
@@ -779,9 +810,9 @@ def _loc_step(conn, st, now):
             p = None
         if st.held is not None:
             p = _loc_confirm(conn, st, p, now, moving)
-        elif p and st.ref is None and abs(p[1]) <= LOC_SHORT_MAX:
-            # Nothing stored to judge the very first fix against, and inside +-18 it could be a longitude
-            # sent a digit short. Read once more before keeping it (one extra call, once per install).
+        elif p and st.ref is None and (abs(p[1]) <= LOC_SHORT_LNG or abs(p[0]) <= LOC_SHORT_LAT):
+            # Nothing stored to judge the very first fix against, and inside a band it could be a shifted
+            # reading. Read once more before keeping it (one extra call, once per install).
             st.held, st.tries, st.has_fix = (now, p[0], p[1], _loc_frame(conn, now)[0], moving), 0, True
             print(f"location: checking the first position with a second read in {LOC_CONFIRM}s")
             p = None
@@ -789,13 +820,13 @@ def _loc_step(conn, st, now):
             odo = _loc_frame(conn, now)[0]
             verdict, q = _loc_gate(st.ref, p, now, odo)
             if verdict == "repaired" and "repaired" not in st.said:
-                print("location: CarLinko sent a longitude one digit short; using it x 10 "
-                      "(it fits the last fix)")
+                print("location: CarLinko sent a position with its decimal point shifted; "
+                      "using it unshifted (it fits the last fix)")
                 st.said.add("repaired")
             if verdict == "drop":
                 n = _loc_repair_stored(conn, st, p, now, odo)
                 if n:
-                    print(f"location: the stored position had a longitude one digit short; corrected {n} "
+                    print(f"location: the stored position had its decimal point shifted; corrected {n} "
                           f"row{'' if n == 1 else 's'} and kept the new read")
                 else:
                     cand = (now, p[0], p[1], odo)
