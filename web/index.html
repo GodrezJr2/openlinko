@@ -475,6 +475,14 @@
   .tpsum span{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   #tripOut svg{display:block;margin:14px 0 6px}
   .tpmap{height:264px;margin:14px 0 6px;border:1px solid var(--line);border-radius:14px;overflow:hidden;z-index:0}
+  .fclinks{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}
+  .fclinks a,.fclinks button{flex:1;min-width:104px;min-height:44px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;text-align:center;padding:9px 10px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--surface);text-decoration:none;cursor:pointer}
+  [data-theme=dark] #fcMap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.9)}
+  /* touch screens: Leaflet's 30 px zoom buttons are below the 44 px touch target; a mouse keeps them small */
+  @media (pointer:coarse){ #fcMap .leaflet-bar a{width:44px;height:44px;line-height:44px;font-size:22px} }
+  #findCar.fcoff{display:none!important}
+  .trip.hasroute{cursor:pointer}
+  .trip.hasroute .when::after{content:" · \1F5FA\FE0F"}
   .tpmap .leaflet-container{height:100%;width:100%;background:var(--surface);font:inherit}
   .tpmap .leaflet-control-attribution{font-size:9px;background:color-mix(in oklch,var(--surface) 80%,transparent)}
   .tpmap .leaflet-control-attribution a{color:var(--muted)}
@@ -711,6 +719,16 @@
     </div>
   </section>
 
+  <section id="findCar" class="fcoff">
+    <div class="head2"><div class="over">Find my car</div><span class="over" id="fcAge"></span></div>
+    <div id="fcMap" class="tpmap"></div>
+    <div class="fclinks">
+      <a id="fcNav" rel="noopener">Navigate</a><button id="fcShare" type="button">Copy location</button>
+      <button id="fcBack" type="button" style="display:none"></button>
+    </div>
+    <div class="cap" id="fcCap" style="text-align:left;margin-top:8px"></div>
+  </section>
+
   <section>
     <div class="head2"><div class="over">Recent trips</div><span class="over" id="tripCount"></span></div>
     <div id="tripList"></div>
@@ -861,6 +879,7 @@ const THEME_COLOR={light:'#f4f1ea',dark:'#15140f'};
 function applyTheme(){ document.documentElement.dataset.theme=theme;
   const m=$('themeColor'); if(m) m.setAttribute('content',THEME_COLOR[theme]||THEME_COLOR.light); }
 const MAP_ID={
+  "Find my car":"Cari mobil","Navigate":"Navigasi","Share location":"Bagikan lokasi","Copy location":"Salin lokasi","Copied":"Tersalin","My car":"Mobil saya","Back to the car":"Kembali ke mobil","last seen":"terakhir terlihat","moving":"bergerak","parked":"parkir","No route was recorded for this trip.":"Tidak ada rute tercatat untuk perjalanan ini.","Route":"Rute","Tap a trip to see its route.":"Ketuk perjalanan untuk melihat rutenya.",
   "Range":"Jangkauan","State":"Kondisi","Tyres":"Ban",
   "Insufficient":"Kurang angin","Incompatible":"Tidak sesuai","Under-inflated":"Kempis",
   "Driven today":"Jarak hari ini","Week":"Minggu","Month":"Bulan",
@@ -1145,6 +1164,101 @@ function initTripMap(p){
   _tripMap.fitBounds(L.latLngBounds(route).pad(0.12));
   setTimeout(()=>{ try{_tripMap.invalidateSize();}catch(e){} },140);
 }
+// ---- find my car (opt-in: "location": true in creds.json -> the logger stores CarLinko's position) ----
+// Read-only: api/location + api/route only read what the logger stored; nothing here calls CarLinko.
+let _fcMap=null, _fcLayer=null, _fcPos=null, _fcRoute=false, _fcOn=false, _fcSince=null, _fcNext=0;
+// OSMF Tile Usage Policy (operations.osmfoundation.org/policies/tiles): browsers load the tiles
+// directly and send the page's origin as Referer; the credit stays visible on the map, linked to
+// the copyright page (data (c) OpenStreetMap contributors, ODbL), with the recommended issue link.
+const OSM_CREDIT = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+  + ' | <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Report a map issue</a>';
+function fcInit(){
+  if(_fcMap||typeof L==='undefined') return !!_fcMap;
+  _fcMap=L.map('fcMap',{zoomControl:true,attributionControl:true,scrollWheelZoom:false});
+  // OSM's own tiles: Carto's free basemaps now answer every request with an "API KEY REQUIRED" tile.
+  // Dark theme = the same tiles through a CSS filter (see #fcMap rule), no second provider needed.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:OSM_CREDIT}).addTo(_fcMap);
+  _fcLayer=L.layerGroup().addTo(_fcMap);
+  return true;
+}
+function fcShowCar(){
+  if(!_fcPos||!fcInit()) return;
+  _fcRoute=false; $('fcBack').style.display='none';
+  _fcLayer.clearLayers();
+  L.marker([_fcPos.lat,_fcPos.lng],{interactive:false,keyboard:false,icon:tpPin('#2563eb','\u{1F697}')}).addTo(_fcLayer);
+  _fcMap.setView([_fcPos.lat,_fcPos.lng],16,{animate:false});   // instant: the map is reused, so an
+  setTimeout(()=>{ try{_fcMap.invalidateSize();}catch(e){} },140);
+  $('fcCap').textContent = T('Tap a trip to see its route.');
+}
+// Navigate: hand the destination to the OS rather than naming apps. Android shows its chooser with every
+// installed navigation app (geo: intent) or opens the user's default; iOS has no chooser for web links, so
+// its system maps link; desktop browsers have no navigation apps, so web directions.
+function fcPlatform(){ const ua=navigator.userAgent||'';
+  if(/Android/i.test(ua)) return 'android';
+  if(/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)) return 'ios';
+  return 'desktop'; }
+function fcLinks(lat,lng){
+  const ll=lat.toFixed(6)+','+lng.toFixed(6), pf=fcPlatform(), a=$('fcNav'); if(!a) return;
+  if(pf==='android'){ a.href='geo:'+ll+'?q='+ll+'('+encodeURIComponent(T('My car'))+')'; a.removeAttribute('target'); }
+  else if(pf==='ios'){ a.href='https://maps.apple.com/?daddr='+ll+'&dirflg=d'; a.target='_blank'; }
+  else { a.href='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+ll; a.target='_blank'; }
+  a.textContent=T('Navigate');
+  const b=$('fcShare'); if(b&&!b.dataset.busy) b.textContent=T(navigator.share?'Share location':'Copy location');
+}
+// Share sheet where the browser has one (HTTPS / localhost on phones), else copy "lat,lng" so it can be
+// pasted into any app. Clipboard needs a secure context too, so plain-http LAN dashboards fall back to
+// execCommand, and if even that fails the coordinates are shown on the button to copy by hand.
+async function fcShare(){
+  if(!_fcPos) return;
+  const ll=_fcPos.lat.toFixed(6)+','+_fcPos.lng.toFixed(6), b=$('fcShare');
+  if(navigator.share){
+    try{ await navigator.share({title:T('My car'), text:ll, url:'https://www.google.com/maps/search/?api=1&query='+ll}); return; }
+    catch(e){ if(e&&e.name==='AbortError') return; }          // user closed the sheet: nothing to do
+  }
+  let ok=false;
+  try{ if(navigator.clipboard&&window.isSecureContext){ await navigator.clipboard.writeText(ll); ok=true; } }catch(e){}
+  if(!ok){ const ta=document.createElement('textarea'); ta.value=ll; ta.setAttribute('readonly','');
+    ta.style.cssText='position:fixed;top:0;left:0;opacity:0'; document.body.append(ta); ta.select();
+    try{ ok=document.execCommand('copy'); }catch(e){} ta.remove(); }
+  b.dataset.busy='1'; b.textContent= ok? T('Copied')+' \u2713' : ll;
+  setTimeout(()=>{ delete b.dataset.busy; b.textContent=T(navigator.share?'Share location':'Copy location'); }, ok?2000:8000);
+}
+const LOC_FRESH_S=300;     // past 5 min a "moving" fix is just the last one seen
+async function loadLocation(){
+  if(!_fcOn&&Date.now()<_fcNext) return;          // off: re-check once a minute, not on every 5 s read
+  let d; try{ const r=await fetch('api/location',{cache:'no-store'}); if(!r.ok) return; d=await r.json(); }catch(e){ return; }
+  _fcOn=!!d.enabled; _fcSince=typeof d.since==='number'?d.since:null;
+  if(!_fcOn) _fcNext=Date.now()+60000;
+  const sec=$('findCar');
+  if(!_fcOn||typeof d.lat!=='number'||typeof d.lng!=='number'){ sec.classList.add('fcoff'); return; }
+  const was=sec.classList.contains('fcoff'); sec.classList.remove('fcoff');
+  // "moving" only while the fix is fresh: a stop fix that never landed must not leave the car "moving" for days
+  const stale=d.moving&&!(d.age_s!=null&&d.age_s<LOC_FRESH_S);
+  $('fcAge').textContent = T('last seen')+' '+(d.age_s!=null?ago(d.age_s/60)+' '+T('ago'):'')+(stale?'':' · '+T(d.moving?'moving':'parked'));
+  fcLinks(d.lat,d.lng);
+  const moved=!_fcPos||_fcPos.lat!==d.lat||_fcPos.lng!==d.lng;
+  _fcPos={lat:d.lat,lng:d.lng};
+  if(!_fcRoute&&(was||moved)) fcShowCar();     // don't yank the map while a route is open
+}
+async function fcShowRoute(t){
+  let pts=[]; try{ pts=((await (await fetch('api/route?from='+t.start_ts+'&to='+t.end_ts,{cache:'no-store'})).json()).points)||[]; }catch(e){}
+  const sec=$('findCar');
+  if(pts.length<2||!fcInit()){ $('fcCap').textContent=T('No route was recorded for this trip.'); sec.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  _fcRoute=true; _fcLayer.clearLayers();
+  const line=pts.map(p=>[p[0],p[1]]);
+  L.polyline(line,{interactive:false,color:'#2d8f5f',weight:7,opacity:.22,lineJoin:'round',lineCap:'round'}).addTo(_fcLayer);
+  L.polyline(line,{interactive:false,color:'#2d8f5f',weight:3.5,opacity:.95,lineJoin:'round',lineCap:'round'}).addTo(_fcLayer);
+  L.marker(line[0],{interactive:false,keyboard:false,icon:tpPin('#2563eb','A')}).addTo(_fcLayer);
+  L.marker(line[line.length-1],{interactive:false,keyboard:false,icon:tpPin('#2d8f5f','B')}).addTo(_fcLayer);
+  _fcMap.fitBounds(L.latLngBounds(line).pad(0.12),{animate:false});  // animated zoom from the car view can be cut short
+  setTimeout(()=>{ try{_fcMap.invalidateSize();}catch(e){} },140);
+  const b=$('fcBack'); b.textContent=T('Back to the car'); b.style.display=_fcPos?'':'none';
+  $('fcCap').textContent=T('Route')+' · '+t.day+' · '+t.from+(t.to!==t.from?'–'+t.to:'')+' · '+t.km+' km';
+  sec.scrollIntoView({behavior:'smooth',block:'center'});
+}
+{ const fb=$('fcBack'); if(fb) fb.addEventListener('click',()=>fcShowCar()); }
+{ const fs=$('fcShare'); if(fs) fs.addEventListener('click',()=>fcShare()); }
 function gmapsLink(fromO, toO, stops){
   // no origin -> Google navigates from "My Location" (avoids the fixed-pin vs current-GPS reroute fight)
   let u='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(toO);
@@ -1815,6 +1929,7 @@ function guardBanner(el, g, reload){
 async function load(live){
   // Always read the box's own DB, which the --stream logger keeps <30s fresh. Never api/refresh:
   // that opens a 2nd CarLinko socket per call, which fights the streamer's persistent one.
+  const locP=loadLocation();                            // opt-in car position, read alongside the summary
   let d; try{ d=await (await fetch('api/summary',{cache:'no-store'})).json(); }catch(e){ return; }
   DATA=d;
   syncResyncSeg();
@@ -1938,12 +2053,14 @@ async function load(live){
   // trips
   // outings (fragments parked <20 min apart folded server-side, same as v2's day card);
   // no per-trip kWh: the SoC drop often lands while parked, so it only matches per day
+  await locP;                                           // rows need to know if location is on
   const tl=$('tripList'); tl.replaceChildren(); const trips=d.outings||[];
   trips.forEach(t=>{ const row=document.createElement('div'); row.className='trip';
     const parts=[t.day, t.from+(t.to!==t.from?'–'+t.to:'')];
     row.innerHTML=`<div><div class="km num">${t.km}<u>km</u></div><div class="when">${parts.join(' · ')}</div></div>`+
       `<div class="r"><div class="eff num">${t.min||'<1'}<u>min</u></div>`+
       `<div class="sub2">${t.avg_kmh!=null?T('avg')+' '+t.avg_kmh+' km/h':''}</div></div>`;
+    if(_fcOn&&_fcSince!=null&&t.end_ts>=_fcSince){ row.classList.add('hasroute'); row.addEventListener('click',()=>fcShowRoute(t)); }
     tl.append(row); });
   $('tripCount').textContent = trips.length? trips.length+' '+T('shown'):'';
   if(!trips.length) tl.innerHTML='<div class="cap" style="text-align:left">'+T('No trips yet — drive and they appear here.')+'</div>';
@@ -1987,7 +2104,7 @@ if('IntersectionObserver' in window){
 // ---- bottom tab bar: split the long scroll into Home / Charge / Trips / More ----
 const TABMAP=[['home',['soc','tstatus','kmToday','cons','insRpkm']],
   ['charging',['chgbadge','planmode','careBadge']],
-  ['trips',['tripList','lifeChg','tripFrom']],
+  ['trips',['tripList','lifeChg','tripFrom','fcAge']],
   ['control',['ctrlBadge']],
   ['more',['svcBadge','specBadge','langSeg']]];
 function setupTabs(){
@@ -2001,6 +2118,7 @@ function showTab(t){
   document.querySelectorAll('.tabbar .tb').forEach(b=>{ const on=b.dataset.t===t; b.classList.toggle('on',on);
     if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   window.scrollTo(0,0); $('appbar').classList.remove('show');
+  if(t==='trips'&&_fcMap) setTimeout(()=>{ try{ _fcMap.invalidateSize(); if(!_fcRoute) fcShowCar(); }catch(e){} },80);
 }
 document.querySelectorAll('.tabbar .tb').forEach(b=>b.addEventListener('click',()=>{ showTab(b.dataset.t); buzz(8); }));
 applyTheme(); applyLang(); syncSeg(); setDistView(distView);   // theme + language + dist view on boot
